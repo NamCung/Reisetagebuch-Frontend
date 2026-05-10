@@ -14,14 +14,14 @@
 
 import { ref } from 'vue'
 
-const reisen = ref([])
+const reisen = ref<any[]>([])
 
 function loadCountries() {
   const baseUrl = import.meta.env.VITE_APP_BACKEND_BASE_URL
   const endpoint = baseUrl + "/countries"
-  const requestOptions = { method: "GET", redirect: "follow" }
+  const requestOptions:RequestInit = { method: "GET", redirect: "follow" }
 
-  fetch(endpoint, requestOptions)
+  fetch(endpoint, requestOptions )
     .then(response => response.json())
     .then(result => reisen.value = result)
     .catch(error => console.log(error))
