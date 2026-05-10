@@ -1,18 +1,31 @@
+
 <template>
   <div>
     <h2>Meine Reisen</h2>
     <ul>
-      <li v-for="reise in reisen" :key="reise.id">
-        <strong>{{ reise.titel }}</strong> – {{ reise.ort }}, {{ reise.land }} ({{ reise.datum }})
+      <li v-for="reise in reisen" :key="reise.countryCode">
+        <strong>{{ reise.country }}</strong> ({{ reise.countryCode }})
       </li>
     </ul>
   </div>
 </template>
 
 <script setup lang="ts">
-const reisen = [
-  { id: 1, titel: "Strandurlaub", ort: "Barcelona", land: "Spanien", datum: "2024-07-10" },
-  { id: 2, titel: "Städtetrip", ort: "Paris", land: "Frankreich", datum: "2024-09-05" },
-  { id: 3, titel: "Wanderurlaub", ort: "Zürich", land: "Schweiz", datum: "2025-01-20" },
-]
+
+import { ref } from 'vue'
+
+const reisen = ref([])
+
+function loadCountries() {
+  const baseUrl = import.meta.env.VITE_APP_BACKEND_BASE_URL
+  const endpoint = baseUrl + "/countries"
+  const requestOptions = { method: "GET", redirect: "follow" }
+
+  fetch(endpoint, requestOptions)
+    .then(response => response.json())
+    .then(result => reisen.value = result)
+    .catch(error => console.log(error))
+}
+
+loadCountries()
 </script>
