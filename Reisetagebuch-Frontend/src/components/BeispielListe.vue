@@ -25,7 +25,7 @@ const countryCodeField = ref('')
 function loadCountries() {
   const baseUrl = import.meta.env.VITE_APP_BACKEND_BASE_URL
   const endpoint = baseUrl + '/countries'
-  const requestOptions: RequestInit = { method: 'GET', redirect: 'follow' }
+  const requestOptions: RequestInit = { method: 'GET', redirect: 'follow', cache: 'no-store' }
 
   fetch(endpoint, requestOptions)
     .then((response) => response.json())
