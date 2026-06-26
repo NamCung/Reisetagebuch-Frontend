@@ -5,11 +5,48 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 const visitedCountries = ref([] as string[])
-const TOTAL_COUNTRIES = 266
+
+// 193 UN-Mitgliedstaaten + 2 Beobachterstaaten (Vatikan, Palästina) = 195.
+// Nur Codes aus dieser Liste fließen in die Prozent-/Länderstatistik ein.
+// Territorien (Grönland, Puerto Rico, Französisch-Guayana, etc.) sind weiterhin
+// auf der Karte anklick- und einfärbbar, zählen aber nicht zu TOTAL_COUNTRIES.
+const UN_MEMBER_CODES = new Set([
+  'AF','AL','DZ','AD','AO','AG','AR','AM','AU','AT','AZ',
+  'BS','BH','BD','BB','BY','BE','BZ','BJ','BT','BO','BA','BW','BR','BN','BG','BF','BI',
+  'CV','KH','CM','CA','CF','TD','CL','CN','CO','KM','CG','CD','CR','CI','HR','CU','CY','CZ',
+  'DK','DJ','DM','DO',
+  'EC','EG','SV','GQ','ER','EE','SZ','ET',
+  'FJ','FI','FR',
+  'GA','GM','GE','DE','GH','GR','GD','GT','GN','GW','GY',
+  'HT','HN','HU',
+  'IS','IN','ID','IR','IQ','IE','IL','IT',
+  'JM','JP','JO',
+  'KZ','KE','KI','KP','KR','KW','KG',
+  'LA','LV','LB','LS','LR','LY','LI','LT','LU',
+  'MG','MW','MY','MV','ML','MT','MH','MR','MU','MX','FM','MD','MC','MN','ME','MA','MZ','MM',
+  'NA','NR','NP','NL','NZ','NI','NE','NG','MK','NO',
+  'OM',
+  'PK','PW','PA','PG','PY','PE','PH','PL','PT',
+  'QA',
+  'RO','RU','RW',
+  'KN','LC','VC','WS','SM','ST','SA','SN','RS','SC','SL','SG','SK','SI','SB','SO','ZA','SS','ES','LK','SD','SR','SE','CH','SY',
+  'TJ','TZ','TH','TL','TG','TO','TT','TN','TR','TM','TV',
+  'UG','UA','AE','GB','US','UY','UZ',
+  'VU','VE','VN',
+  'YE','ZM','ZW',
+  // Beobachterstaaten
+  'VA', 'PS',
+])
+
+const TOTAL_COUNTRIES = UN_MEMBER_CODES.size // 195
 const circumference = 2 * Math.PI * 15
 
+const visitedUnCountries = computed(() =>
+  visitedCountries.value.filter(code => UN_MEMBER_CODES.has(code))
+)
+
 const worldPercent = computed(() =>
-  Math.round((visitedCountries.value.length / TOTAL_COUNTRIES) * 100)
+  Math.round((visitedUnCountries.value.length / TOTAL_COUNTRIES) * 100)
 )
 
 let map: L.Map | null = null
@@ -28,6 +65,55 @@ function resolveIsoCode(feature: any): string {
   const raw = feature?.properties?.['ISO3166-1-Alpha-2']
   if (raw && raw !== '-99') return raw
   return ISO_FIXES[feature?.properties?.name] ?? raw
+}
+
+// ── Suche ──────────────────────────────────────────
+
+const searchQuery = ref('')
+const searchOpen = ref(false)
+
+// Speichert pro Land den Layer, damit die Suche direkt dorthin zoomen kann,
+// ohne erneut durch alle Layer iterieren zu müssen.
+const countryLayers = new Map<string, L.Layer>()
+
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Umlaute/Akzente entfernen, z.B. "ä" -> "a"
+}
+
+const searchResults = computed(() => {
+  const query = normalize(searchQuery.value.trim())
+  if (!query) return []
+  return Array.from(countryLayers.keys())
+    .filter(name => normalize(name).includes(query))
+    .sort()
+    .slice(0, 8)
+})
+
+function selectSearchResult(name: string) {
+  const layer = countryLayers.get(name) as L.Path & { getBounds?: () => L.LatLngBounds }
+  if (!layer) return
+
+  const bounds = (layer as any).getBounds?.()
+  if (bounds) {
+    map?.fitBounds(bounds, { maxZoom: 5, padding: [40, 40] })
+  }
+
+  // Kurzes visuelles Hervorheben, damit man das gefundene Land sofort erkennt
+  ;(layer as any).setStyle?.({ weight: 4, color: '#f1c40f' })
+  ;(layer as any).bringToFront?.()
+  setTimeout(() => {
+    const iso = resolveIsoCode((layer as any).feature)
+    ;(layer as any).setStyle?.(getStyle(iso))
+  }, 1500)
+
+  ;(layer as any).openTooltip?.()
+  setTimeout(() => (layer as any).closeTooltip?.(), 1500)
+
+  searchQuery.value = ''
+  searchOpen.value = false
 }
 
 onMounted(async () => {
@@ -71,13 +157,18 @@ async function loadCountries() {
   const geojson = await res.json()
 
   if (geojsonLayer) geojsonLayer.remove()
+  countryLayers.clear()
 
   geojsonLayer = L.geoJSON(geojson, {
     style: (feature) => getStyle(resolveIsoCode(feature)),
     onEachFeature: (feature, layer) => {
       const isoCode = resolveIsoCode(feature)
+      const name = feature.properties.name
+
+      countryLayers.set(name, layer)
+
       layer.on({
-        click: () => handleCountryClick(isoCode, feature.properties.name),
+        click: () => handleCountryClick(isoCode, name),
         mouseover: (e) => {
           e.target.setStyle({ fillOpacity: 0.95, weight: 2.5 })
           e.target.bringToFront()
@@ -86,7 +177,7 @@ async function loadCountries() {
           e.target.setStyle(getStyle(isoCode))
         }
       })
-      layer.bindTooltip(feature.properties.name, {
+      layer.bindTooltip(name, {
         sticky: true,
         className: 'country-tooltip',
         direction: 'top',
@@ -138,17 +229,33 @@ async function toggleCountry(isoCode: string, name: string) {
 </script>
 
 <template>
-  <div class="home">
-    <header class="topbar">
-      <span class="logo">🌍 Reisetagebuch</span>
-    </header>
-
+  <div class="map-wrapper">
     <div id="map" class="map" />
 
-    <section class="stats-panel">
+    <div class="search-box">
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="Land suchen…"
+        class="search-input"
+        @focus="searchOpen = true"
+      />
+      <ul v-if="searchOpen && searchResults.length" class="search-results">
+        <li
+          v-for="name in searchResults"
+          :key="name"
+          @click="selectSearchResult(name)"
+        >
+          {{ name }}
+        </li>
+      </ul>
+    </div>
+
+    <!-- Freistehende Stats-Karte, schwebt über der Karte am unteren Rand -->
+    <section class="stats-card">
       <div class="stat">
         <span class="stat-value">{{ worldPercent }}%</span>
-        <span class="stat-label">Welt bereist</span>
+        <span class="stat-label">World</span>
       </div>
 
       <svg viewBox="0 0 36 36" class="progress-ring" aria-hidden="true">
@@ -156,7 +263,7 @@ async function toggleCountry(isoCode: string, name: string) {
         <circle
           cx="18" cy="18" r="15"
           fill="none"
-          stroke="#27ae60"
+          stroke="#f5a623"
           stroke-width="3"
           stroke-linecap="round"
           :stroke-dasharray="circumference"
@@ -167,72 +274,116 @@ async function toggleCountry(isoCode: string, name: string) {
       </svg>
 
       <div class="stat">
-        <span class="stat-value">{{ visitedCountries.length }}</span>
-        <span class="stat-label">Länder</span>
+        <span class="stat-value">{{ visitedUnCountries.length }}</span>
+        <span class="stat-label">Countries</span>
       </div>
 
-      <p class="stat-sub">von {{ TOTAL_COUNTRIES }} Ländern und Territorien</p>
+      <p class="stat-sub">Out of {{ TOTAL_COUNTRIES }} Countries (UN Member States)</p>
     </section>
   </div>
 </template>
 
 <style scoped>
-:global(body) { margin: 0; padding: 0; overflow: hidden; }
-:global(#app) { width: 100vw; height: 100vh; margin: 0; padding: 0; }
-
-.home {
-  display: flex;
-  flex-direction: column;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
-  background: #111;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+.map-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
-
-.topbar {
-  flex-shrink: 0;
-  padding: 12px 20px;
-  background: #161616;
-  border-bottom: 1px solid #2a2a2a;
-}
-.logo { font-size: 1.2rem; font-weight: 700; color: #27ae60; }
 
 #map {
-  flex: 1;
   width: 100%;
-  min-height: 0;
+  height: 100%;
 }
 
-.stats-panel {
-  flex-shrink: 0;
-  background: #1a1a1a;
-  border-top: 1px solid #2a2a2a;
-  padding: 14px 32px;
+.search-box {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  width: 240px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+  background: rgba(22, 22, 22, 0.95);
+  color: #eee;
+  font-size: 0.9rem;
+  outline: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+.search-input::placeholder { color: #888; }
+.search-input:focus { border-color: #27ae60; }
+
+.search-results {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 4px;
+  background: rgba(22, 22, 22, 0.97);
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.search-results li {
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: #ddd;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.search-results li:hover {
+  background: #27ae60;
+  color: #111;
+}
+
+/* Freistehende Stats-Karte über der Karte, im Stil des Referenzdesigns:
+   abgerundet, mit Schatten, schwebend statt volle Bildschirmbreite */
+.stats-card {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: min(92%, 480px);
+  background: rgba(20, 20, 20, 0.92);
+  backdrop-filter: blur(6px);
+  border: 1px solid #2a2a2a;
+  border-radius: 20px;
+  padding: 18px 28px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   color: white;
-  min-height: 80px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
 }
-.stat { text-align: center; }
+.stat { text-align: center; min-width: 64px; }
 .stat-value {
   display: block;
-  font-size: 1.8rem;
+  font-size: 1.7rem;
   font-weight: 800;
-  color: #27ae60;
+  color: #f5a623;
   line-height: 1;
 }
-.stat-label { font-size: 0.75rem; color: #888; margin-top: 4px; }
-.progress-ring { width: 50px; height: 50px; }
+.stat-label {
+  font-size: 0.7rem;
+  color: #999;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.progress-ring { width: 46px; height: 46px; flex-shrink: 0; }
 .stat-sub {
   width: 100%;
   text-align: center;
-  color: #555;
-  font-size: 0.72rem;
-  margin: 0;
+  color: #666;
+  font-size: 0.7rem;
+  margin: 8px 0 0;
 }
 
 :global(.country-tooltip) {
