@@ -102,7 +102,7 @@ function selectSearchResult(name: string) {
   }
 
   // Kurzes visuelles Hervorheben, damit man das gefundene Land sofort erkennt
-  ;(layer as any).setStyle?.({ weight: 4, color: '#f1c40f' })
+  ;(layer as any).setStyle?.({ weight: 4, color: '#c9963f' })
   ;(layer as any).bringToFront?.()
   setTimeout(() => {
     const iso = resolveIsoCode((layer as any).feature)
@@ -189,9 +189,9 @@ async function loadCountries() {
 function getStyle(isoCode: string) {
   const isVisited = visitedCountries.value.includes(isoCode)
   return {
-    fillColor: isVisited ? '#27ae60' : '#c8d6e5',
+    fillColor: isVisited ? '#7a9b5c' : '#c8d6e5',
     fillOpacity: isVisited ? 0.85 : 0.4,
-    color: isVisited ? '#1e8449' : '#7f8c8d',
+    color: isVisited ? '#5a7a3f' : '#7f8c8d',
     weight: isVisited ? 2 : 0.6,
   }
 }
@@ -259,11 +259,11 @@ async function toggleCountry(isoCode: string, name: string) {
       </div>
 
       <svg viewBox="0 0 36 36" class="progress-ring" aria-hidden="true">
-        <circle cx="18" cy="18" r="15" fill="none" stroke="#2a2a2a" stroke-width="3" />
+        <circle cx="18" cy="18" r="15" fill="none" stroke="#4a3c28" stroke-width="3" />
         <circle
           cx="18" cy="18" r="15"
           fill="none"
-          stroke="#f5a623"
+          stroke="#c9963f"
           stroke-width="3"
           stroke-linecap="round"
           :stroke-dasharray="circumference"
@@ -288,17 +288,18 @@ async function toggleCountry(isoCode: string, name: string) {
   position: relative;
   width: 100%;
   height: 100%;
+  background: #1c140d;
 }
 
 #map {
   width: 100%;
   height: 100%;
+  background: #1c140d;
 }
-
 .search-box {
   position: absolute;
   top: 12px;
-  left: 12px;
+  left: 24%;
   z-index: 1000;
   width: 240px;
 }
@@ -307,22 +308,22 @@ async function toggleCountry(isoCode: string, name: string) {
   width: 100%;
   padding: 9px 14px;
   border-radius: 8px;
-  border: 1px solid #2a2a2a;
-  background: rgba(22, 22, 22, 0.95);
-  color: #eee;
+  border: 1px solid #3a2c1c;
+  background: rgba(36, 27, 18, 0.95);
+  color: #f0e6d2;
   font-size: 0.9rem;
   outline: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
 }
-.search-input::placeholder { color: #888; }
-.search-input:focus { border-color: #27ae60; }
+.search-input::placeholder { color: #a89878; }
+.search-input:focus { border-color: #c9963f; }
 
 .search-results {
   list-style: none;
   margin: 6px 0 0;
   padding: 4px;
-  background: rgba(22, 22, 22, 0.97);
-  border: 1px solid #2a2a2a;
+  background: rgba(36, 27, 18, 0.97);
+  border: 1px solid #3a2c1c;
   border-radius: 8px;
   max-height: 220px;
   overflow-y: auto;
@@ -331,13 +332,13 @@ async function toggleCountry(isoCode: string, name: string) {
 .search-results li {
   padding: 8px 10px;
   border-radius: 6px;
-  color: #ddd;
+  color: #e0d4ba;
   font-size: 0.88rem;
   cursor: pointer;
 }
 .search-results li:hover {
-  background: #27ae60;
-  color: #111;
+  background: #c9963f;
+  color: #1c140d;
 }
 
 /* Freistehende Stats-Karte über der Karte, im Stil des Referenzdesigns:
@@ -349,9 +350,9 @@ async function toggleCountry(isoCode: string, name: string) {
   transform: translateX(-50%);
   z-index: 1000;
   width: min(92%, 480px);
-  background: rgba(20, 20, 20, 0.92);
+  background: rgba(36, 27, 18, 0.92);
   backdrop-filter: blur(6px);
-  border: 1px solid #2a2a2a;
+  border: 1px solid #3a2c1c;
   border-radius: 20px;
   padding: 18px 28px 14px;
   display: flex;
@@ -359,7 +360,7 @@ async function toggleCountry(isoCode: string, name: string) {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 6px;
-  color: white;
+  color: #f0e6d2;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
 }
 .stat { text-align: center; min-width: 64px; }
@@ -367,12 +368,12 @@ async function toggleCountry(isoCode: string, name: string) {
   display: block;
   font-size: 1.7rem;
   font-weight: 800;
-  color: #f5a623;
+  color: #c9963f;
   line-height: 1;
 }
 .stat-label {
   font-size: 0.7rem;
-  color: #999;
+  color: #a89878;
   margin-top: 4px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -381,15 +382,15 @@ async function toggleCountry(isoCode: string, name: string) {
 .stat-sub {
   width: 100%;
   text-align: center;
-  color: #666;
+  color: #8a7456;
   font-size: 0.7rem;
   margin: 8px 0 0;
 }
 
 :global(.country-tooltip) {
-  background: rgba(22, 22, 22, 0.92) !important;
-  border: 1px solid #27ae60 !important;
-  color: #27ae60 !important;
+  background: rgba(36, 27, 18, 0.92) !important;
+  border: 1px solid #c9963f !important;
+  color: #c9963f !important;
   font-weight: 800 !important;
   font-size: 1.15rem !important;
   border-radius: 6px !important;

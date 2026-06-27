@@ -5,7 +5,9 @@ import { RouterView, RouterLink } from 'vue-router'
 <template>
   <div class="app-shell">
     <header class="topbar">
-      <span class="logo">🌍 Reisetagebuch</span>
+      <div class="topbar-side"></div>
+
+      <RouterLink to="/" class="logo"> Reisetagebuch</RouterLink>
 
       <nav class="tabs">
         <RouterLink to="/" class="tab">Weltkarte</RouterLink>
@@ -44,7 +46,7 @@ body {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: #111;
+  background: #1c140d;
 }
 
 .topbar {
@@ -54,26 +56,40 @@ body {
   justify-content: space-between;
   gap: 24px;
   padding: 12px 24px;
-  background: #161616;
-  border-bottom: 1px solid #2a2a2a;
+  background: #241b12;
+  border-bottom: 1px solid #3a2c1c;
+}
+
+.topbar-side {
+  flex: 1;
 }
 
 .logo {
-  font-size: 1.2rem;
+  flex: 1;
+  text-align: center;
+  font-size: 1.5rem;
   font-weight: 700;
-  color: #27ae60;
+  color: #c9963f;
   white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.logo:hover {
+  color: #e0b15a;
 }
 
 .tabs {
+  flex: 1;
   display: flex;
+  justify-content: flex-end;
   gap: 6px;
 }
 
 .tab {
   padding: 8px 16px;
   border-radius: 8px;
-  color: #999;
+  color: #a89878;
   font-size: 0.9rem;
   font-weight: 600;
   text-decoration: none;
@@ -81,13 +97,13 @@ body {
 }
 
 .tab:hover {
-  background: #222;
-  color: #ddd;
+  background: #2b2014;
+  color: #e0d4ba;
 }
 
 .tab.router-link-active {
-  background: #27ae60;
-  color: #0d0d0d;
+  background: #c9963f;
+  color: #1c140d;
 }
 
 .app-content {
