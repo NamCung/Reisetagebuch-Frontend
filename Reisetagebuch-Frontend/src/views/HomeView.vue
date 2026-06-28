@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -116,6 +116,14 @@ function selectSearchResult(name: string) {
   searchOpen.value = false
 }
 
+function fitMapToContainer() {
+  if (!map) return
+  map.invalidateSize()
+  map.fitBounds([[-82, -145], [80, 165]], { padding: [10, 10] })
+}
+
+onUnmounted(() => window.removeEventListener('resize', fitMapToContainer))
+
 onMounted(async () => {
   map = L.map('map', {
     center: [20, 10],
@@ -123,20 +131,18 @@ onMounted(async () => {
     minZoom: 2,
     maxZoom: 7,
     zoomControl: true,
+    zoomSnap: 0,
+    zoomDelta: 0.5,
     worldCopyJump: false,
     maxBounds: [[-90, -180], [90, 180]],
     maxBoundsViscosity: 1.0,
   })
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap',
-    noWrap: true,
-  }).addTo(map)
-
   requestAnimationFrame(() => {
-    map?.invalidateSize()
-    map?.fitBounds([[-75, -145], [80, 165]])
+    fitMapToContainer()
   })
+
+  window.addEventListener('resize', fitMapToContainer)
 
   try {
     const res = await axios.get(
@@ -299,7 +305,7 @@ async function toggleCountry(isoCode: string, name: string) {
 .search-box {
   position: absolute;
   top: 12px;
-  left: 24%;
+  left: 60px;
   z-index: 1000;
   width: 240px;
 }

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { RouterLink } from 'vue-router'
 import axios from 'axios'
 
 const API = import.meta.env.VITE_APP_BACKEND_BASE_URL
@@ -263,7 +264,9 @@ function vorschau(text) {
     <aside class="reisen-spalte">
       <div class="spalte-header">
         <h2>Meine Reisen</h2>
-        <button class="btn-primary" @click="neueReiseOeffnen">+ Neue Reise</button>
+      </div>
+      <div class="reiseplanung-hinweis">
+        <RouterLink to="/reiseplanung" class="reiseplanung-link">Neue Reisen unter „Reise planen" anlegen →</RouterLink>
       </div>
 
       <p v-if="reisen.length === 0" class="hinweis">Noch keine Reisen angelegt.</p>
@@ -714,6 +717,24 @@ function vorschau(text) {
 }
 .icon-btn:hover { background: #312419; }
 .icon-btn.danger:hover { background: #4a2418; border-color: #6b3424; color: #e89878; }
+
+/* Hinweis-Kasten für Reiseplanung */
+.reiseplanung-hinweis {
+  border: 1px dashed #3a2c1c;
+  background: #1c140d;
+  border-radius: 8px;
+  padding: 10px 12px;
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.reiseplanung-link {
+  color: #a89878;
+  font-weight: 600;
+  font-size: 11px;
+  text-decoration: none;
+}
+.reiseplanung-link:hover { color: #c9963f; }
 
 /* Hinweise / Fehler */
 .hinweis { color: #8a7456; font-size: 0.85rem; }

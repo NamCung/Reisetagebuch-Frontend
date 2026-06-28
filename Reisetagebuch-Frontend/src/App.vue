@@ -106,6 +106,11 @@ body {
   color: #1c140d;
 }
 
+.tab:focus-visible {
+  outline: 2px solid #c9963f;
+  outline-offset: 2px;
+}
+
 .app-content {
   flex: 1;
   min-height: 0;
