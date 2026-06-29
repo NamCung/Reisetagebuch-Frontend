@@ -1,9 +1,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import axios from 'axios'
 
 const API = import.meta.env.VITE_APP_BACKEND_BASE_URL
+const route = useRoute()
 
 // alle Reisen und welche gerade ausgewählt ist
 const reisen = ref([])
@@ -24,19 +25,14 @@ const entryOrt = ref('')
 const entryText = ref('')
 
 const entryError = ref('')
-const reiseError = ref('')
 
-// Reise-Formular (Modal)
-const showReiseForm = ref(false)
-const editingReiseId = ref(null)
-const reiseTitel = ref('')
-const reiseZiel = ref('')
-const reiseStart = ref('')
-const reiseEnde = ref('')
-const reiseBeschreibung = ref('')
-
-onMounted(() => {
-  ladeReisen()
+onMounted(async () => {
+  await ladeReisen()
+  const reiseIdParam = route.query.reiseId
+  if (reiseIdParam) {
+    const zielReise = reisen.value.find(r => r.id == Number(reiseIdParam))
+    if (zielReise) await waehleReise(zielReise)
+  }
 })
 
 // ── Reisen laden und auswählen ──────────────────
@@ -50,7 +46,6 @@ async function ladeReisen() {
     }
   } catch (e) {
     console.error('Fehler beim Laden der Reisen:', e)
-    reiseError.value = 'Reisen konnten nicht geladen werden.'
   }
 }
 
@@ -63,80 +58,6 @@ async function waehleReise(reise) {
     entries.value = res.data.sort((a, b) => a.datum.localeCompare(b.datum))
   } catch (e) {
     console.error('Fehler beim Laden der Einträge:', e)
-  }
-}
-
-// ── Reise anlegen / bearbeiten / löschen (Modal) ──
-
-function neueReiseOeffnen() {
-  editingReiseId.value = null
-  reiseTitel.value = ''
-  reiseZiel.value = ''
-  reiseStart.value = ''
-  reiseEnde.value = ''
-  reiseBeschreibung.value = ''
-  showReiseForm.value = true
-}
-
-function reiseBearbeitenOeffnen(reise) {
-  editingReiseId.value = reise.id
-  reiseTitel.value = reise.titel
-  reiseZiel.value = reise.reiseziel
-  reiseStart.value = reise.startDatum
-  reiseEnde.value = reise.endDatum
-  reiseBeschreibung.value = reise.beschreibung
-  showReiseForm.value = true
-}
-
-function reiseFormSchliessen() {
-  showReiseForm.value = false
-}
-
-async function reiseSpeichern() {
-  if (!reiseTitel.value.trim()) {
-    reiseError.value = 'Bitte einen Titel angeben.'
-    return
-  }
-  reiseError.value = ''
-
-  const daten = {
-    titel: reiseTitel.value,
-    reiseziel: reiseZiel.value,
-    startDatum: reiseStart.value,
-    endDatum: reiseEnde.value,
-    beschreibung: reiseBeschreibung.value,
-  }
-
-  try {
-    if (editingReiseId.value) {
-      const res = await axios.put(`${API}/reisen/${editingReiseId.value}`, daten)
-      const i = reisen.value.findIndex(r => r.id === editingReiseId.value)
-      reisen.value[i] = res.data
-      if (selectedReiseId.value === editingReiseId.value) selectedReise.value = res.data
-    } else {
-      const res = await axios.post(`${API}/reisen`, daten)
-      reisen.value.push(res.data)
-      waehleReise(res.data)
-    }
-    reiseFormSchliessen()
-  } catch (e) {
-    console.error('Fehler beim Speichern der Reise:', e)
-    reiseError.value = 'Reise konnte nicht gespeichert werden.'
-  }
-}
-
-async function reiseLoeschen(id) {
-  if (!confirm('Diese Reise inklusive aller Einträge wirklich löschen?')) return
-  try {
-    await axios.delete(`${API}/reisen/${id}`)
-    reisen.value = reisen.value.filter(r => r.id !== id)
-    if (selectedReiseId.value === id) {
-      selectedReise.value = null
-      entries.value = []
-      if (reisen.value.length > 0) waehleReise(reisen.value[0])
-    }
-  } catch (e) {
-    console.error('Fehler beim Löschen der Reise:', e)
   }
 }
 
@@ -281,10 +202,6 @@ function vorschau(text) {
           <div class="reise-card-titel">{{ reise.titel }}</div>
           <div class="reise-card-ziel">{{ reise.reiseziel }}</div>
           <div class="reise-card-zeitraum">{{ kurzDatum(reise.startDatum) }} – {{ kurzDatum(reise.endDatum) }}</div>
-          <div class="reise-card-actions">
-            <button class="icon-btn" @click.stop="reiseBearbeitenOeffnen(reise)">✎</button>
-            <button class="icon-btn danger" @click.stop="reiseLoeschen(reise.id)">🗑</button>
-          </div>
         </li>
       </ul>
     </aside>
@@ -380,45 +297,6 @@ function vorschau(text) {
       </div>
     </main>
 
-    <!-- Modal: Reise anlegen/bearbeiten -->
-    <div v-if="showReiseForm" class="modal-overlay" @click.self="reiseFormSchliessen">
-      <div class="modal">
-        <h2>{{ editingReiseId ? 'Reise bearbeiten' : 'Neue Reise' }}</h2>
-        <p v-if="reiseError" class="fehler">{{ reiseError }}</p>
-
-        <label>
-          Titel
-          <input type="text" v-model="reiseTitel" placeholder="z. B. Sommer in Italien" />
-        </label>
-
-        <label>
-          Reiseziel
-          <input type="text" v-model="reiseZiel" placeholder="z. B. Toskana, Italien" />
-        </label>
-
-        <div class="form-row">
-          <label>
-            Start
-            <input type="date" v-model="reiseStart" />
-          </label>
-          <label>
-            Ende
-            <input type="date" v-model="reiseEnde" />
-          </label>
-        </div>
-
-        <label>
-          Beschreibung
-          <textarea v-model="reiseBeschreibung" rows="3" placeholder="Kurze Beschreibung…"></textarea>
-        </label>
-
-        <div class="modal-actions">
-          <button class="btn-secondary" @click="reiseFormSchliessen">Abbrechen</button>
-          <button class="btn-primary" @click="reiseSpeichern">Speichern</button>
-        </div>
-      </div>
-    </div>
-
   </div>
 </template>
 
@@ -477,16 +355,6 @@ function vorschau(text) {
 .reise-card-titel { font-weight: 700; font-size: 0.95rem; }
 .reise-card-ziel { color: #c9b896; font-size: 0.82rem; margin-top: 2px; }
 .reise-card-zeitraum { color: #8a7456; font-size: 0.75rem; margin-top: 4px; }
-
-.reise-card-actions {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-}
-.reise-card:hover .reise-card-actions { opacity: 1; }
 
 /* Rechte Spalte */
 .detail-spalte {
@@ -705,19 +573,6 @@ function vorschau(text) {
 .btn-secondary.klein { padding: 6px 12px; font-size: 0.78rem; }
 .btn-secondary.danger:hover { background: #4a2418; border-color: #6b3424; color: #e89878; }
 
-.icon-btn {
-  background: #2b2014;
-  border: 1px solid #3a2c1c;
-  color: #d8c8a8;
-  border-radius: 6px;
-  width: 28px;
-  height: 28px;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-.icon-btn:hover { background: #312419; }
-.icon-btn.danger:hover { background: #4a2418; border-color: #6b3424; color: #e89878; }
-
 /* Hinweis-Kasten für Reiseplanung */
 .reiseplanung-hinweis {
   border: 1px dashed #3a2c1c;
@@ -746,68 +601,5 @@ function vorschau(text) {
   padding: 8px 12px;
   font-size: 0.82rem;
   margin: 0 0 12px;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
-
-.modal {
-  background: #2a221a;
-  border: 1px solid #4a3c28;
-  border-radius: 12px;
-  padding: 26px 28px;
-  width: 420px;
-  max-width: 90vw;
-  max-height: 85vh;
-  overflow-y: auto;
-  color: #f0e6d2;
-}
-.modal h2 { margin: 0 0 16px; font-size: 1.15rem; color: #f0e6d2; }
-
-.modal label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.8rem;
-  color: #c9b896;
-  margin-bottom: 14px;
-}
-
-.modal input,
-.modal textarea {
-  background: #1f1810;
-  border: 1px solid #4a3c28;
-  border-radius: 6px;
-  padding: 9px 10px;
-  color: #f0e6d2;
-  font-size: 0.9rem;
-  font-family: inherit;
-  resize: vertical;
-}
-.modal input:focus,
-.modal textarea:focus {
-  outline: none;
-  border-color: #c9963f;
-}
-
-.form-row {
-  display: flex;
-  gap: 12px;
-}
-.form-row label { flex: 1; }
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 6px;
 }
 </style>
