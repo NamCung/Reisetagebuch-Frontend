@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
@@ -6,9 +6,9 @@ import axios from 'axios'
 const API = import.meta.env.VITE_APP_BACKEND_BASE_URL
 const router = useRouter()
 
-// ── Bestehende Reise-Refs ────────────────────────
-const reisen = ref<any[]>([])
-const editingId = ref<number | null>(null)
+// ── Reisen ────────────────────────────────────────
+const reisen = ref([])
+const editingId = ref(null)
 const neueReise = ref({
   titel: '',
   reiseziel: '',
@@ -17,167 +17,227 @@ const neueReise = ref({
   beschreibung: ''
 })
 
-// ── Aufklapp-Zustand und Orte ────────────────────
-const expandedId = ref<number | null>(null)
-const orteByReise = ref<Record<number, any[]>>({})
-const kartenByReise: Record<number, any> = {}
-const markersByReise: Record<number, any[]> = {}
-const ortSucheInputs: Record<number, HTMLInputElement | null> = {}
+// ── Orte / Karte (es ist immer nur eine Reise aufgeklappt) ──
+const expandedId = ref(null)
+const orte = ref([])
+const ortSucheInput = ref(null)
+const ausgewaehlteKategorie = ref('SEHENSWUERDIGKEIT')
 
-// ── Google Maps Script (einmalig laden) ──────────
-let mapsScriptPromise: Promise<void> | null = null
-function ladeGoogleMapsScript(): Promise<void> {
-  if (mapsScriptPromise) return mapsScriptPromise
-  mapsScriptPromise = new Promise((resolve, reject) => {
-    if ((window as any).google?.maps?.places) {
+// normale Variablen reichen hier, müssen nicht reaktiv sein
+let karte = null
+let marker = []
+
+// Kategorien zum Auswählen, einfach als Objekt
+const KATEGORIEN = {
+  SEHENSWUERDIGKEIT: { label: 'Sehenswürdigkeit', icon: '📍', farbe: '#c9963f' },
+  RESTAURANT: { label: 'Restaurant', icon: '🍴', farbe: '#e07a5f' },
+  HOTEL: { label: 'Hotel', icon: '🛏️', farbe: '#7a9b5c' },
+  SONSTIGES: { label: 'Sonstiges', icon: '⭐', farbe: '#8c8c8c' },
+}
+
+function kategorieInfo(wert) {
+  // falls keine Kategorie gesetzt ist, einfach "Sonstiges" nehmen
+  if (KATEGORIEN[wert]) {
+    return KATEGORIEN[wert]
+  }
+  return KATEGORIEN.SONSTIGES
+}
+
+// ── Google Maps Script laden (nur einmal) ────────
+let mapsGeladen = false
+let mapsPromise = null
+
+function ladeGoogleMapsScript() {
+  if (mapsGeladen) {
+    return Promise.resolve()
+  }
+  if (mapsPromise) {
+    return mapsPromise
+  }
+
+  mapsPromise = new Promise((resolve, reject) => {
+    // Google ruft diese Funktion selbst auf, sobald wirklich alles fertig geladen ist
+    window.initGoogleMaps = () => {
+      mapsGeladen = true
       resolve()
-      return
     }
+
     const script = document.createElement('script')
-    const key = import.meta.env.VITE_MAPS_KEY
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&loading=async`
+    const key = import.meta.env.VITE_GOOGLE_MAPS_KEY
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&callback=initGoogleMaps`
     script.async = true
-    script.onload = () => resolve()
     script.onerror = () => reject(new Error('Google Maps konnte nicht geladen werden'))
     document.head.appendChild(script)
   })
-  return mapsScriptPromise
+
+  return mapsPromise
 }
 
-// ── Karte und Marker ─────────────────────────────
-function aktualisiereKarte(reiseId: number) {
-  const container = document.getElementById(`karte-${reiseId}`)
+// ── Karte aufbauen + Marker setzen ───────────────
+function aktualisiereKarte(reiseId) {
+  const container = document.getElementById('karte-' + reiseId)
   if (!container) return
-  const orte = orteByReise.value[reiseId] ?? []
-  const center = orte.length > 0
-    ? { lat: orte[0].latitude, lng: orte[0].longitude }
-    : { lat: 20, lng: 0 }
 
-  if (!kartenByReise[reiseId]) {
-    kartenByReise[reiseId] = new (window as any).google.maps.Map(container, {
-      center,
-      zoom: orte.length > 0 ? 11 : 2,
-      mapId: import.meta.env.VITE_MAPS_ID,
-    })
-  } else {
-    if (orte.length > 0) kartenByReise[reiseId].setCenter(center)
+  let center = { lat: 20, lng: 0 }
+  if (orte.value.length > 0) {
+    center = { lat: orte.value[0].latitude, lng: orte.value[0].longitude }
   }
 
-  // Alte Marker entfernen
-  ;(markersByReise[reiseId] ?? []).forEach((m: any) => m.setMap(null))
-  markersByReise[reiseId] = []
+  // Karte wird bei jedem Auf-/Zuklappen neu gebaut, ist einfacher
+  // als die alte Karte wiederzuverwenden
+  karte = new google.maps.Map(container, {
+    center: center,
+    zoom: orte.value.length > 0 ? 13 : 2,
+  })
 
-  // Neue Marker setzen
-  for (const ort of orte) {
-    const marker = new (window as any).google.maps.Marker({
+  // alte Marker erstmal entfernen
+  for (const m of marker) {
+    m.setMap(null)
+  }
+  marker = []
+
+  // für jeden Ort einen neuen Marker anlegen
+  for (const ort of orte.value) {
+    const info = kategorieInfo(ort.kategorie)
+    const neuerMarker = new google.maps.Marker({
       position: { lat: ort.latitude, lng: ort.longitude },
-      map: kartenByReise[reiseId],
-      title: ort.name,
+      map: karte,
+      title: info.icon + ' ' + ort.name,
+      label: { text: info.icon, fontSize: '14px' },
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 12,
+        fillColor: info.farbe,
+        fillOpacity: 1,
+        strokeColor: '#1c140d',
+        strokeWeight: 2,
+      },
     })
-    markersByReise[reiseId].push(marker)
+    marker.push(neuerMarker)
   }
 }
 
-// ── Autocomplete ─────────────────────────────────
-function initialisiereAutocomplete(reise: any) {
-  const input = ortSucheInputs[reise.id]
-  if (!input) return
-  const autocomplete = new (window as any).google.maps.places.Autocomplete(input)
+// ── Autocomplete für die Ortssuche ───────────────
+function initialisiereAutocomplete(reiseId) {
+  if (!ortSucheInput.value) return
+
+  const autocomplete = new google.maps.places.Autocomplete(ortSucheInput.value)
   autocomplete.addListener('place_changed', async () => {
     const place = autocomplete.getPlace()
     if (!place.geometry) return
-    const lat = place.geometry.location.lat()
-    const lng = place.geometry.location.lng()
+
     try {
-      await axios.post(`${API}/orte`, {
+      await axios.post(API + '/orte', {
         name: place.name,
         ort: place.formatted_address,
-        latitude: lat,
-        longitude: lng,
-        rating: place.rating ?? null,
+        latitude: place.geometry.location.lat(),
+        longitude: place.geometry.location.lng(),
+        rating: place.rating || null,
         placeId: place.place_id,
-        reise: { id: reise.id }
+        kategorie: ausgewaehlteKategorie.value,
+        reise: { id: reiseId }
       })
-      const res = await axios.get(`${API}/reisen/${reise.id}/orte`)
-      orteByReise.value[reise.id] = res.data
-      input.value = ''
-      aktualisiereKarte(reise.id)
+      await ladeOrte(reiseId)
+      ortSucheInput.value.value = ''
+      aktualisiereKarte(reiseId)
     } catch (e) {
       console.error('Fehler beim Speichern des Ortes:', e)
     }
   })
 }
 
-// ── Aufklappen / Zuklappen ───────────────────────
-async function reiseAufklappen(reise: any) {
+async function ladeOrte(reiseId) {
+  const res = await axios.get(API + '/reisen/' + reiseId + '/orte')
+  orte.value = res.data
+}
+
+// ── Reise aufklappen / zuklappen ─────────────────
+async function reiseAufklappen(reise) {
   if (expandedId.value === reise.id) {
     expandedId.value = null
     return
   }
+
   expandedId.value = reise.id
+  ausgewaehlteKategorie.value = 'SEHENSWUERDIGKEIT'
+
   try {
     await ladeGoogleMapsScript()
-    const res = await axios.get(`${API}/reisen/${reise.id}/orte`)
-    orteByReise.value[reise.id] = res.data
+    await ladeOrte(reise.id)
   } catch (e) {
     console.error('Fehler beim Laden der Orte:', e)
-    orteByReise.value[reise.id] = []
+    orte.value = []
   }
-  await nextTick()
+
+  // warten bis das Input-Feld wirklich im DOM ist
+  await wartenBisInputBereit()
+
   aktualisiereKarte(reise.id)
-  initialisiereAutocomplete(reise)
+  initialisiereAutocomplete(reise.id)
 }
 
-// ── Ort löschen ──────────────────────────────────
-async function ortLoeschen(reiseId: number, ortId: number) {
+// Manchmal reicht ein einzelnes nextTick() nicht aus, deshalb hier
+// notfalls mehrmals kurz warten, bis der ref wirklich gesetzt ist
+async function wartenBisInputBereit() {
+  for (let versuch = 0; versuch < 10; versuch++) {
+    await nextTick()
+    if (ortSucheInput.value instanceof HTMLInputElement) {
+      return
+    }
+    // kurz warten und nochmal probieren
+    await new Promise(resolve => setTimeout(resolve, 30))
+  }
+}
+async function ortLoeschen(reiseId, ortId) {
   try {
-    await axios.delete(`${API}/orte/${ortId}`)
-    const res = await axios.get(`${API}/reisen/${reiseId}/orte`)
-    orteByReise.value[reiseId] = res.data
+    await axios.delete(API + '/orte/' + ortId)
+    await ladeOrte(reiseId)
     aktualisiereKarte(reiseId)
   } catch (e) {
     console.error('Fehler beim Löschen des Ortes:', e)
   }
 }
 
-// ── Bestehende Reise-Funktionen ──────────────────
+// ── Reisen CRUD ────────────────────────────────────
 const sortierteReisen = computed(() => {
-  return [...reisen.value].sort((a, b) => {
-    const statusOrder = (s: string) => (s === 'GEPLANT' ? 0 : 1)
-    const statusDiff = statusOrder(a.status) - statusOrder(b.status)
-    if (statusDiff !== 0) return statusDiff
-    if (!a.startDatum && !b.startDatum) return 0
+  const kopie = [...reisen.value]
+  kopie.sort((a, b) => {
+    // geplante Reisen zuerst, Entwürfe danach
+    if (a.status === 'GEPLANT' && b.status !== 'GEPLANT') return -1
+    if (a.status !== 'GEPLANT' && b.status === 'GEPLANT') return 1
+
     if (!a.startDatum) return 1
     if (!b.startDatum) return -1
     return a.startDatum.localeCompare(b.startDatum)
   })
+  return kopie
 })
 
 async function ladeReisen() {
   try {
-    const res = await axios.get(`${API}/reisen`)
+    const res = await axios.get(API + '/reisen')
     reisen.value = res.data
   } catch (e) {
     console.error('Fehler beim Laden der Reisen:', e)
   }
 }
 
-async function reiseAnlegen(status: string) {
+async function reiseAnlegen(status) {
   if (!neueReise.value.titel) return
-  if (
-    neueReise.value.startDatum &&
-    neueReise.value.endDatum &&
-    neueReise.value.endDatum < neueReise.value.startDatum
-  ) {
-    window.alert('Das Enddatum darf nicht vor dem Startdatum liegen.')
-    return
+
+  if (neueReise.value.startDatum && neueReise.value.endDatum) {
+    if (neueReise.value.endDatum < neueReise.value.startDatum) {
+      window.alert('Das Enddatum darf nicht vor dem Startdatum liegen.')
+      return
+    }
   }
+
   try {
     if (editingId.value !== null) {
-      await axios.put(`${API}/reisen/${editingId.value}`, { ...neueReise.value, status })
+      await axios.put(API + '/reisen/' + editingId.value, { ...neueReise.value, status: status })
       editingId.value = null
     } else {
-      await axios.post(`${API}/reisen`, { ...neueReise.value, status })
+      await axios.post(API + '/reisen', { ...neueReise.value, status: status })
     }
     neueReise.value = { titel: '', reiseziel: '', startDatum: '', endDatum: '', beschreibung: '' }
     await ladeReisen()
@@ -186,7 +246,7 @@ async function reiseAnlegen(status: string) {
   }
 }
 
-function reiseBearbeitenStarten(reise: any) {
+function reiseBearbeitenStarten(reise) {
   editingId.value = reise.id
   neueReise.value = {
     titel: reise.titel || '',
@@ -202,30 +262,33 @@ function bearbeitenAbbrechen() {
   neueReise.value = { titel: '', reiseziel: '', startDatum: '', endDatum: '', beschreibung: '' }
 }
 
-async function reiseLoeschen(id: number) {
+async function reiseLoeschen(id) {
   if (!window.confirm('Diese Reise wirklich löschen?')) return
+
   try {
-    await axios.delete(`${API}/reisen/${id}`)
+    await axios.delete(API + '/reisen/' + id)
     if (editingId.value === id) {
-      editingId.value = null
-      neueReise.value = { titel: '', reiseziel: '', startDatum: '', endDatum: '', beschreibung: '' }
+      bearbeitenAbbrechen()
     }
-    if (expandedId.value === id) expandedId.value = null
+    if (expandedId.value === id) {
+      expandedId.value = null
+    }
     await ladeReisen()
   } catch (e) {
     console.error('Fehler beim Löschen der Reise:', e)
   }
 }
 
-function kurzDatum(d: string) {
+function kurzDatum(d) {
   if (!d) return ''
   return new Date(d).toLocaleDateString('de-DE')
 }
 
-function zeileStatus(reise: any): { text: string; klasse: string } {
+function zeileStatus(reise) {
   if (reise.status !== 'GEPLANT' || !reise.reiseziel || !reise.startDatum || !reise.endDatum) {
     return { text: 'Details fehlen', klasse: 'keine-details' }
   }
+
   const heute = new Date()
   heute.setHours(0, 0, 0, 0)
   const start = new Date(reise.startDatum)
@@ -234,18 +297,22 @@ function zeileStatus(reise: any): { text: string; klasse: string } {
   ende.setHours(0, 0, 0, 0)
 
   if (heute < start) {
-    const diff = Math.ceil((start.getTime() - heute.getTime()) / (1000 * 60 * 60 * 24))
-    return { text: `in ${diff} Tag${diff === 1 ? '' : 'en'}`, klasse: 'countdown' }
+    const tageBisStart = Math.ceil((start - heute) / 86400000)
+    return { text: 'in ' + tageBisStart + ' Tag' + (tageBisStart === 1 ? '' : 'en'), klasse: 'countdown' }
   }
+
   if (heute <= ende) {
-    const tagY = Math.floor((heute.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    const tagZ = Math.floor((ende.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    return { text: `Läuft gerade (Tag ${tagY} von ${tagZ})`, klasse: 'laeuft' }
+    const tagAktuell = Math.floor((heute - start) / 86400000) + 1
+    const tagGesamt = Math.floor((ende - start) / 86400000) + 1
+    return { text: 'Läuft gerade (Tag ' + tagAktuell + ' von ' + tagGesamt + ')', klasse: 'laeuft' }
   }
+
   return { text: 'Abgeschlossen', klasse: 'abgeschlossen' }
 }
 
-onMounted(() => { ladeReisen() })
+onMounted(() => {
+  ladeReisen()
+})
 </script>
 
 <template>
@@ -299,12 +366,7 @@ onMounted(() => { ladeReisen() })
           <div class="card">
             <p v-if="sortierteReisen.length === 0" class="keine-reisen">Noch keine Reisen angelegt.</p>
 
-            <div
-              v-for="reise in sortierteReisen"
-              :key="reise.id"
-              class="reise-block"
-            >
-              <!-- Reise-Zeile -->
+            <div v-for="reise in sortierteReisen" :key="reise.id" class="reise-block">
               <div class="reise-zeile">
                 <div class="zeile-links">
                   <div class="zeile-titel-reihe">
@@ -341,26 +403,38 @@ onMounted(() => { ladeReisen() })
               <div v-if="expandedId === reise.id" class="reise-detail">
                 <div class="detail-grid">
 
-                  <!-- Linke Spalte: Ortssuche + Liste -->
                   <div class="orte-spalte">
                     <div class="label-klein">GEPLANTE ORTE</div>
+
+                    <div class="kategorie-auswahl">
+                      <button
+                        v-for="(info, wert) in KATEGORIEN"
+                        :key="wert"
+                        :class="['kategorie-chip', { aktiv: ausgewaehlteKategorie === wert }]"
+                        :style="ausgewaehlteKategorie === wert ? { borderColor: info.farbe, color: info.farbe } : {}"
+                        @click="ausgewaehlteKategorie = wert"
+                      >
+                        {{ info.icon }} {{ info.label }}
+                      </button>
+                    </div>
+
                     <input
-                      :ref="(el: any) => { if (el) ortSucheInputs[reise.id] = el }"
+                      :ref="(el) => { if (el) ortSucheInput = el }"
                       class="ort-suche-input"
                       type="text"
                       placeholder="Ort hinzufügen…"
                     />
+
                     <div class="orte-liste">
-                      <p v-if="!(orteByReise[reise.id]?.length)" class="keine-orte">Noch keine Orte hinzugefügt.</p>
-                      <div
-                        v-for="ort in (orteByReise[reise.id] ?? [])"
-                        :key="ort.id"
-                        class="ort-card"
-                      >
+                      <p v-if="orte.length === 0" class="keine-orte">Noch keine Orte hinzugefügt.</p>
+                      <div v-for="ort in orte" :key="ort.id" class="ort-card">
                         <div class="ort-card-info">
-                          <span class="ort-card-name">📍 {{ ort.name }}</span>
+                          <span class="ort-card-name">{{ kategorieInfo(ort.kategorie).icon }} {{ ort.name }}</span>
                           <span class="ort-card-meta">
                             {{ ort.ort }}<template v-if="ort.rating"> · ★ {{ ort.rating }}</template>
+                          </span>
+                          <span class="ort-kategorie-badge" :style="{ background: kategorieInfo(ort.kategorie).farbe }">
+                            {{ kategorieInfo(ort.kategorie).label }}
                           </span>
                         </div>
                         <button class="ort-loeschen-btn" @click="ortLoeschen(reise.id, ort.id)" title="Entfernen">✕</button>
@@ -368,8 +442,7 @@ onMounted(() => { ladeReisen() })
                     </div>
                   </div>
 
-                  <!-- Rechte Spalte: Karte -->
-                  <div :id="`karte-${reise.id}`" class="reise-karte"></div>
+                  <div :id="'karte-' + reise.id" class="reise-karte"></div>
 
                 </div>
               </div>
@@ -383,6 +456,7 @@ onMounted(() => { ladeReisen() })
 </template>
 
 <style scoped>
+/* ── Grundgerüst der Seite ──────────────────── */
 .planer {
   width: 100%;
   height: 100%;
@@ -392,18 +466,23 @@ onMounted(() => { ladeReisen() })
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+:global(.pac-container) {
+  z-index: 9999 !important;
+}
+
 .planer-inner {
   max-width: 1100px;
   margin: 0 auto;
   padding: 28px 32px;
 }
 
-.seiten-kopf { margin-bottom: 22px; }
+.seiten-kopf {
+  margin-bottom: 22px;
+}
 
 .seiten-titel {
   font-size: 1.3rem;
   font-weight: 700;
-  color: #f0e6d2;
   margin: 0 0 4px;
 }
 
@@ -428,6 +507,7 @@ onMounted(() => { ladeReisen() })
   margin-bottom: 6px;
 }
 
+/* ── Card-Box, wird mehrfach verwendet ──────── */
 .card {
   background: #241b12;
   border: 1px solid #3a2c1c;
@@ -435,6 +515,7 @@ onMounted(() => { ladeReisen() })
   padding: 16px;
 }
 
+/* ── Formular (links) ───────────────────────── */
 .feld-label {
   display: flex;
   flex-direction: column;
@@ -454,6 +535,7 @@ onMounted(() => { ladeReisen() })
   font-family: inherit;
   width: 100%;
 }
+
 .feld-input:focus {
   outline: none;
   border-color: #c9963f;
@@ -464,8 +546,14 @@ onMounted(() => { ladeReisen() })
   min-height: 72px;
 }
 
-.datum-row { display: flex; gap: 8px; }
-.datum-row .feld-label { flex: 1; }
+.datum-row {
+  display: flex;
+  gap: 8px;
+}
+
+.datum-row .feld-label {
+  flex: 1;
+}
 
 .btn-row {
   display: flex;
@@ -483,7 +571,9 @@ onMounted(() => { ladeReisen() })
   cursor: pointer;
   flex: 1;
 }
-.btn-grau:hover { background: #4a3a24; }
+.btn-grau:hover {
+  background: #4a3a24;
+}
 
 .btn-gold {
   background: #c9963f;
@@ -496,7 +586,9 @@ onMounted(() => { ladeReisen() })
   cursor: pointer;
   flex: 1;
 }
-.btn-gold:hover { background: #e0aa4a; }
+.btn-gold:hover {
+  background: #e0aa4a;
+}
 
 .btn-abbrechen {
   background: transparent;
@@ -509,15 +601,17 @@ onMounted(() => { ladeReisen() })
   text-align: center;
   text-decoration: underline;
 }
-.btn-abbrechen:hover { color: #f0e6d2; }
+.btn-abbrechen:hover {
+  color: #f0e6d2;
+}
 
+/* ── Reisen-Liste (rechts) ───────────────────── */
 .keine-reisen {
   color: #8a7456;
   font-size: 0.85rem;
   margin: 0;
 }
 
-/* Reise-Block (Zeile + optionaler Detail-Bereich) */
 .reise-block {
   border-bottom: 1px solid #3a2c1c;
 }
@@ -533,7 +627,10 @@ onMounted(() => { ladeReisen() })
   padding: 12px 0;
 }
 
-.zeile-links { flex: 1; min-width: 0; }
+.zeile-links {
+  flex: 1;
+  min-width: 0;
+}
 
 .zeile-titel-reihe {
   display: flex;
@@ -544,11 +641,12 @@ onMounted(() => { ladeReisen() })
 
 .zeile-titel {
   font-weight: 600;
-  color: #f0e6d2;
   font-size: 0.92rem;
   cursor: pointer;
 }
-.zeile-titel:hover { color: #c9963f; }
+.zeile-titel:hover {
+  color: #c9963f;
+}
 
 .status-badge {
   font-size: 9px;
@@ -558,8 +656,15 @@ onMounted(() => { ladeReisen() })
   flex-shrink: 0;
 }
 
-.badge-geplant { background: #7a9b5c; color: #1c140d; }
-.badge-entwurf { background: #6e5d44; color: #f0e6d2; }
+.badge-geplant {
+  background: #7a9b5c;
+  color: #1c140d;
+}
+
+.badge-entwurf {
+  background: #6e5d44;
+  color: #f0e6d2;
+}
 
 .zeile-meta {
   color: #a89878;
@@ -579,7 +684,9 @@ onMounted(() => { ladeReisen() })
   gap: 4px;
   opacity: 0.3;
 }
-.reise-zeile:hover .zeile-aktionen { opacity: 1; }
+.reise-zeile:hover .zeile-aktionen {
+  opacity: 1;
+}
 
 .icon-btn {
   background: #2b2014;
@@ -595,15 +702,39 @@ onMounted(() => { ladeReisen() })
   justify-content: center;
   padding: 0;
 }
-.icon-btn:hover { background: #312419; color: #f0e6d2; }
-.icon-btn.danger:hover { background: #4a2418; border-color: #6b3424; color: #e89878; }
+.icon-btn:hover {
+  background: #312419;
+  color: #f0e6d2;
+}
+.icon-btn.danger:hover {
+  background: #4a2418;
+  border-color: #6b3424;
+  color: #e89878;
+}
 
-.countdown { color: #c9963f; font-weight: 600; font-size: 0.82rem; }
-.laeuft { color: #7a9b5c; font-weight: 600; font-size: 0.82rem; }
-.abgeschlossen { color: #a89878; font-size: 0.82rem; }
-.keine-details { color: #a89878; font-size: 0.78rem; }
+.countdown {
+  color: #c9963f;
+  font-weight: 600;
+  font-size: 0.82rem;
+}
 
-/* ── Aufgeklappter Bereich ─────────────────────── */
+.laeuft {
+  color: #7a9b5c;
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.abgeschlossen {
+  color: #a89878;
+  font-size: 0.82rem;
+}
+
+.keine-details {
+  color: #a89878;
+  font-size: 0.78rem;
+}
+
+/* ── Aufgeklappter Bereich mit Orten + Karte ─── */
 .reise-detail {
   border-top: 1px solid #3a2c1c;
   background: #1c140d;
@@ -622,6 +753,30 @@ onMounted(() => { ladeReisen() })
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.kategorie-auswahl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kategorie-chip {
+  background: #241b12;
+  border: 1px solid #3a2c1c;
+  color: #a89878;
+  border-radius: 16px;
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.kategorie-chip:hover {
+  border-color: #5a4a30;
+}
+.kategorie-chip.aktiv {
+  background: #2b2014;
+  font-weight: 600;
 }
 
 .ort-suche-input {
@@ -665,12 +820,11 @@ onMounted(() => { ladeReisen() })
 .ort-card-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
 .ort-card-name {
-  color: #f0e6d2;
   font-size: 13px;
   font-weight: 600;
   overflow: hidden;
@@ -686,6 +840,16 @@ onMounted(() => { ladeReisen() })
   white-space: nowrap;
 }
 
+.ort-kategorie-badge {
+  display: inline-block;
+  width: fit-content;
+  color: #1c140d;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
 .ort-loeschen-btn {
   background: transparent;
   border: none;
@@ -696,7 +860,9 @@ onMounted(() => { ladeReisen() })
   flex-shrink: 0;
   line-height: 1;
 }
-.ort-loeschen-btn:hover { color: #e89878; }
+.ort-loeschen-btn:hover {
+  color: #e89878;
+}
 
 .reise-karte {
   min-height: 280px;
