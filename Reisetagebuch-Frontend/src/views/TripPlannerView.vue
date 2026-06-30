@@ -6,9 +6,11 @@ import axios from 'axios'
 const API = import.meta.env.VITE_APP_BACKEND_BASE_URL
 const router = useRouter()
 
-// ── Reisen ────────────────────────────────────────
+// Liste aller Reisen, wird vom Backend geladen
 const reisen = ref([])
+// Id der Reise, die gerade im Formular bearbeitet wird (null = keine)
 const editingId = ref(null)
+// Eingabewerte für das Formular "Neue Reise"
 const neueReise = ref({
   titel: '',
   reiseziel: '',
@@ -17,17 +19,21 @@ const neueReise = ref({
   beschreibung: ''
 })
 
-// ── Orte / Karte (es ist immer nur eine Reise aufgeklappt) ──
+// Id der Reise, die gerade aufgeklappt ist (nur eine gleichzeitig möglich)
 const expandedId = ref(null)
+// geplante Orte der aktuell aufgeklappten Reise
 const orte = ref([])
+// Referenz auf das Such-Input-Feld für die Ortssuche
 const ortSucheInput = ref(null)
+// aktuell ausgewählte Kategorie für neue Orte
 const ausgewaehlteKategorie = ref('SEHENSWUERDIGKEIT')
 
-// normale Variablen reichen hier, müssen nicht reaktiv sein
+// Karten-Objekt, muss nicht reaktiv sein
 let karte = null
+// aktuelle Marker auf der Karte
 let marker = []
 
-// Kategorien zum Auswählen, einfach als Objekt
+// Kategorien mit Label, Icon und Farbe zur Auswahl
 const KATEGORIEN = {
   SEHENSWUERDIGKEIT: { label: 'Sehenswürdigkeit', icon: '📍', farbe: '#c9963f' },
   RESTAURANT: { label: 'Restaurant', icon: '🍴', farbe: '#e07a5f' },
@@ -35,18 +41,19 @@ const KATEGORIEN = {
   SONSTIGES: { label: 'Sonstiges', icon: '⭐', farbe: '#8c8c8c' },
 }
 
+// liefert Icon/Label/Farbe zu einer Kategorie, oder "Sonstiges" als Standard
 function kategorieInfo(wert) {
-  // falls keine Kategorie gesetzt ist, einfach "Sonstiges" nehmen
   if (KATEGORIEN[wert]) {
     return KATEGORIEN[wert]
   }
   return KATEGORIEN.SONSTIGES
 }
 
-// ── Google Maps Script laden (nur einmal) ────────
+// Status-Flags, damit das Google-Maps-Script nur einmal geladen wird
 let mapsGeladen = false
 let mapsPromise = null
 
+// lädt das Google Maps Script einmalig und wartet auf den Callback von Google
 function ladeGoogleMapsScript() {
   if (mapsGeladen) {
     return Promise.resolve()
@@ -73,18 +80,18 @@ function ladeGoogleMapsScript() {
   return mapsPromise
 }
 
-// ── Karte aufbauen + Marker setzen ───────────────
+// baut die Karte für eine Reise neu auf und setzt alle Marker
 function aktualisiereKarte(reiseId) {
   const container = document.getElementById('karte-' + reiseId)
   if (!container) return
 
+  // Kartenmittelpunkt: erster Ort, falls vorhanden, sonst Standardwert
   let center = { lat: 20, lng: 0 }
   if (orte.value.length > 0) {
     center = { lat: orte.value[0].latitude, lng: orte.value[0].longitude }
   }
 
-  // Karte wird bei jedem Auf-/Zuklappen neu gebaut, ist einfacher
-  // als die alte Karte wiederzuverwenden
+  // Karte wird bei jedem Auf-/Zuklappen neu gebaut, einfacher als wiederverwenden
   karte = new google.maps.Map(container, {
     center: center,
     zoom: orte.value.length > 0 ? 13 : 2,
@@ -96,7 +103,7 @@ function aktualisiereKarte(reiseId) {
   }
   marker = []
 
-  // für jeden Ort einen neuen Marker anlegen
+  // für jeden Ort einen neuen Marker mit passendem Icon/Farbe anlegen
   for (const ort of orte.value) {
     const info = kategorieInfo(ort.kategorie)
     const neuerMarker = new google.maps.Marker({
@@ -117,16 +124,18 @@ function aktualisiereKarte(reiseId) {
   }
 }
 
-// ── Autocomplete für die Ortssuche ───────────────
+// richtet die Google-Autocomplete-Suche im Input-Feld ein
 function initialisiereAutocomplete(reiseId) {
   if (!ortSucheInput.value) return
 
   const autocomplete = new google.maps.places.Autocomplete(ortSucheInput.value)
+  // wird ausgelöst, wenn der Nutzer einen Vorschlag aus der Liste anklickt
   autocomplete.addListener('place_changed', async () => {
     const place = autocomplete.getPlace()
     if (!place.geometry) return
 
     try {
+      // gewählten Ort mit der aktuell ausgewählten Kategorie ans Backend senden
       await axios.post(API + '/orte', {
         name: place.name,
         ort: place.formatted_address,
@@ -146,12 +155,13 @@ function initialisiereAutocomplete(reiseId) {
   })
 }
 
+// lädt die geplanten Orte einer Reise vom Backend
 async function ladeOrte(reiseId) {
   const res = await axios.get(API + '/reisen/' + reiseId + '/orte')
   orte.value = res.data
 }
 
-// ── Reise aufklappen / zuklappen ─────────────────
+// klappt eine Reise auf oder zu und initialisiert dabei Karte und Suche
 async function reiseAufklappen(reise) {
   if (expandedId.value === reise.id) {
     expandedId.value = null
@@ -176,8 +186,7 @@ async function reiseAufklappen(reise) {
   initialisiereAutocomplete(reise.id)
 }
 
-// Manchmal reicht ein einzelnes nextTick() nicht aus, deshalb hier
-// notfalls mehrmals kurz warten, bis der ref wirklich gesetzt ist
+// wartet so lange, bis das Such-Input-Feld als echtes HTML-Element vorhanden ist
 async function wartenBisInputBereit() {
   for (let versuch = 0; versuch < 10; versuch++) {
     await nextTick()
@@ -188,6 +197,8 @@ async function wartenBisInputBereit() {
     await new Promise(resolve => setTimeout(resolve, 30))
   }
 }
+
+// löscht einen geplanten Ort und aktualisiert danach Liste und Karte
 async function ortLoeschen(reiseId, ortId) {
   try {
     await axios.delete(API + '/orte/' + ortId)
@@ -198,7 +209,7 @@ async function ortLoeschen(reiseId, ortId) {
   }
 }
 
-// ── Reisen CRUD ────────────────────────────────────
+// sortiert die Reisen, geplante zuerst, danach nach Startdatum
 const sortierteReisen = computed(() => {
   const kopie = [...reisen.value]
   kopie.sort((a, b) => {
@@ -213,6 +224,7 @@ const sortierteReisen = computed(() => {
   return kopie
 })
 
+// lädt alle Reisen vom Backend
 async function ladeReisen() {
   try {
     const res = await axios.get(API + '/reisen')
@@ -222,6 +234,7 @@ async function ladeReisen() {
   }
 }
 
+// legt eine neue Reise an oder aktualisiert eine bestehende, je nach Status
 async function reiseAnlegen(status) {
   if (!neueReise.value.titel) return
 
@@ -246,6 +259,7 @@ async function reiseAnlegen(status) {
   }
 }
 
+// übernimmt die Werte einer Reise ins Formular zum Bearbeiten
 function reiseBearbeitenStarten(reise) {
   editingId.value = reise.id
   neueReise.value = {
@@ -257,11 +271,13 @@ function reiseBearbeitenStarten(reise) {
   }
 }
 
+// bricht das Bearbeiten ab und leert das Formular
 function bearbeitenAbbrechen() {
   editingId.value = null
   neueReise.value = { titel: '', reiseziel: '', startDatum: '', endDatum: '', beschreibung: '' }
 }
 
+// löscht eine Reise nach Rückfrage und räumt den restlichen Zustand auf
 async function reiseLoeschen(id) {
   if (!window.confirm('Diese Reise wirklich löschen?')) return
 
@@ -279,11 +295,13 @@ async function reiseLoeschen(id) {
   }
 }
 
+// formatiert ein Datum kurz im deutschen Format
 function kurzDatum(d) {
   if (!d) return ''
   return new Date(d).toLocaleDateString('de-DE')
 }
 
+// berechnet den Anzeige-Status einer Reise (Countdown, läuft, abgeschlossen, etc.)
 function zeileStatus(reise) {
   if (reise.status !== 'GEPLANT' || !reise.reiseziel || !reise.startDatum || !reise.endDatum) {
     return { text: 'Details fehlen', klasse: 'keine-details' }
@@ -310,6 +328,7 @@ function zeileStatus(reise) {
   return { text: 'Abgeschlossen', klasse: 'abgeschlossen' }
 }
 
+// beim Laden der Seite einmal alle Reisen holen
 onMounted(() => {
   ladeReisen()
 })
@@ -456,7 +475,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* ── Grundgerüst der Seite ──────────────────── */
+/* Grundgerüst der gesamten Seite */
 .planer {
   width: 100%;
   height: 100%;
@@ -466,6 +485,7 @@ onMounted(() => {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+/* Google Autocomplete Dropdown immer sichtbar über anderen Elementen */
 :global(.pac-container) {
   z-index: 9999 !important;
 }
@@ -507,7 +527,7 @@ onMounted(() => {
   margin-bottom: 6px;
 }
 
-/* ── Card-Box, wird mehrfach verwendet ──────── */
+/* Card-Box, wird mehrfach für Formular und Liste verwendet */
 .card {
   background: #241b12;
   border: 1px solid #3a2c1c;
@@ -515,7 +535,6 @@ onMounted(() => {
   padding: 16px;
 }
 
-/* ── Formular (links) ───────────────────────── */
 .feld-label {
   display: flex;
   flex-direction: column;
@@ -605,7 +624,6 @@ onMounted(() => {
   color: #f0e6d2;
 }
 
-/* ── Reisen-Liste (rechts) ───────────────────── */
 .keine-reisen {
   color: #8a7456;
   font-size: 0.85rem;
@@ -734,7 +752,6 @@ onMounted(() => {
   font-size: 0.78rem;
 }
 
-/* ── Aufgeklappter Bereich mit Orten + Karte ─── */
 .reise-detail {
   border-top: 1px solid #3a2c1c;
   background: #1c140d;
