@@ -6,10 +6,6 @@ import 'leaflet/dist/leaflet.css'
 
 const visitedCountries = ref([] as string[])
 
-// 193 UN-Mitgliedstaaten + 2 Beobachterstaaten (Vatikan, Palästina) = 195.
-// Nur Codes aus dieser Liste fließen in die Prozent-/Länderstatistik ein.
-// Territorien (Grönland, Puerto Rico, Französisch-Guayana, etc.) sind weiterhin
-// auf der Karte anklick- und einfärbbar, zählen aber nicht zu TOTAL_COUNTRIES.
 const UN_MEMBER_CODES = new Set([
   'AF','AL','DZ','AD','AO','AG','AR','AM','AU','AT','AZ',
   'BS','BH','BD','BB','BY','BE','BZ','BJ','BT','BO','BA','BW','BR','BN','BG','BF','BI',
@@ -34,11 +30,10 @@ const UN_MEMBER_CODES = new Set([
   'UG','UA','AE','GB','US','UY','UZ',
   'VU','VE','VN',
   'YE','ZM','ZW',
-  // Beobachterstaaten
-  'VA', 'PS',
+  'VA','PS',
 ])
 
-const TOTAL_COUNTRIES = UN_MEMBER_CODES.size // 195
+const TOTAL_COUNTRIES = UN_MEMBER_CODES.size
 const circumference = 2 * Math.PI * 15
 
 const visitedUnCountries = computed(() =>
@@ -52,10 +47,6 @@ const worldPercent = computed(() =>
 let map: L.Map | null = null
 let geojsonLayer: L.GeoJSON | null = null
 
-// Manche Länder haben in diesem GeoJSON-Datensatz "-99" statt eines echten
-// ISO-Codes (bekanntes Problem bei Natural-Earth-Daten, z.B. Frankreich, Norwegen).
-// Hier können bei Bedarf weitere Länder ergänzt werden, falls sie ebenfalls
-// übersprungen werden.
 const ISO_FIXES: Record<string, string> = {
   France: 'FR',
   Norway: 'NO',
@@ -71,16 +62,13 @@ function resolveIsoCode(feature: any): string {
 
 const searchQuery = ref('')
 const searchOpen = ref(false)
-
-// Speichert pro Land den Layer, damit die Suche direkt dorthin zoomen kann,
-// ohne erneut durch alle Layer iterieren zu müssen.
 const countryLayers = new Map<string, L.Layer>()
 
 function normalize(text: string): string {
   return text
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Umlaute/Akzente entfernen, z.B. "ä" -> "a"
+    .replace(/[\u0300-\u036f]/g, '')
 }
 
 const searchResults = computed(() => {
@@ -93,25 +81,16 @@ const searchResults = computed(() => {
 })
 
 function selectSearchResult(name: string) {
-  const layer = countryLayers.get(name) as L.Path & { getBounds?: () => L.LatLngBounds }
+  const layer = countryLayers.get(name) as any
   if (!layer) return
-
-  const bounds = (layer as any).getBounds?.()
-  if (bounds) {
-    map?.fitBounds(bounds, { maxZoom: 5, padding: [40, 40] })
-  }
-
-  // Kurzes visuelles Hervorheben, damit man das gefundene Land sofort erkennt
-  ;(layer as any).setStyle?.({ weight: 4, color: '#c9963f' })
-  ;(layer as any).bringToFront?.()
+  const bounds = layer.getBounds?.()
+  if (bounds) map?.fitBounds(bounds, { maxZoom: 5, padding: [40, 40] })
+  layer.setStyle?.({ weight: 4, color: '#c9963f' })
+  layer.bringToFront?.()
   setTimeout(() => {
-    const iso = resolveIsoCode((layer as any).feature)
-    ;(layer as any).setStyle?.(getStyle(iso))
+    const iso = resolveIsoCode(layer.feature)
+    layer.setStyle?.(getStyle(iso))
   }, 1500)
-
-  ;(layer as any).openTooltip?.()
-  setTimeout(() => (layer as any).closeTooltip?.(), 1500)
-
   searchQuery.value = ''
   searchOpen.value = false
 }
@@ -138,10 +117,12 @@ onMounted(async () => {
     maxBoundsViscosity: 1.0,
   })
 
-  requestAnimationFrame(() => {
-    fitMapToContainer()
-  })
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap',
+    noWrap: true,
+  }).addTo(map)
 
+  requestAnimationFrame(() => fitMapToContainer())
   window.addEventListener('resize', fitMapToContainer)
 
   try {
@@ -175,11 +156,11 @@ async function loadCountries() {
 
       layer.on({
         click: () => handleCountryClick(isoCode, name),
-        mouseover: (e) => {
+        mouseover: (e: any) => {
           e.target.setStyle({ fillOpacity: 0.95, weight: 2.5 })
           e.target.bringToFront()
         },
-        mouseout: (e) => {
+        mouseout: (e: any) => {
           e.target.setStyle(getStyle(isoCode))
         }
       })
@@ -238,6 +219,7 @@ async function toggleCountry(isoCode: string, name: string) {
   <div class="map-wrapper">
     <div id="map" class="map" />
 
+    <!-- Suche oben links -->
     <div class="search-box">
       <input
         v-model="searchQuery"
@@ -257,7 +239,19 @@ async function toggleCountry(isoCode: string, name: string) {
       </ul>
     </div>
 
-    <!-- Freistehende Stats-Karte, schwebt über der Karte am unteren Rand -->
+    <!-- Legende unten links -->
+    <div class="legende">
+      <div class="legende-eintrag">
+        <div class="legende-farbe besucht"></div>
+        <span>Hier war ich schonmal</span>
+      </div>
+      <div class="legende-eintrag">
+        <div class="legende-farbe unbesucht"></div>
+        <span>Hier muss ich noch hin</span>
+      </div>
+    </div>
+
+    <!-- Stats-Karte unten mittig -->
     <section class="stats-card">
       <div class="stat">
         <span class="stat-value">{{ worldPercent }}%</span>
@@ -302,6 +296,7 @@ async function toggleCountry(isoCode: string, name: string) {
   height: 100%;
   background: #1c140d;
 }
+
 .search-box {
   position: absolute;
   top: 12px;
@@ -320,6 +315,7 @@ async function toggleCountry(isoCode: string, name: string) {
   font-size: 0.9rem;
   outline: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  box-sizing: border-box;
 }
 .search-input::placeholder { color: #a89878; }
 .search-input:focus { border-color: #c9963f; }
@@ -347,8 +343,47 @@ async function toggleCountry(isoCode: string, name: string) {
   color: #1c140d;
 }
 
-/* Freistehende Stats-Karte über der Karte, im Stil des Referenzdesigns:
-   abgerundet, mit Schatten, schwebend statt volle Bildschirmbreite */
+/* Legende unten links */
+.legende {
+  position: absolute;
+  bottom: 100px;
+  left: 16px;
+  z-index: 1000;
+  background: rgba(36, 27, 18, 0.92);
+  backdrop-filter: blur(4px);
+  border: 1px solid #3a2c1c;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.legende-eintrag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e0d4ba;
+  font-size: 0.78rem;
+}
+
+.legende-farbe {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.legende-farbe.besucht {
+  background: #7a9b5c;
+  border: 1px solid #5a7a3f;
+}
+.legende-farbe.unbesucht {
+  background: #c8d6e5;
+  border: 1px solid #7f8c8d;
+  opacity: 0.8;
+}
+
+/* Stats-Karte unten mittig */
 .stats-card {
   position: absolute;
   bottom: 20px;

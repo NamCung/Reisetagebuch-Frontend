@@ -1,29 +1,27 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'  // nextTick NEU
 import { RouterLink, useRoute } from 'vue-router'
 import axios from 'axios'
+import FotoUpload from '../components/FotoUpload.vue'
 
 const API = import.meta.env.VITE_APP_BACKEND_BASE_URL
 const route = useRoute()
 
-// alle Reisen und welche gerade ausgewählt ist
 const reisen = ref([])
 const selectedReiseId = ref(null)
 const selectedReise = ref(null)
 
-// Einträge der ausgewählten Reise
 const entries = ref([])
 
-// welcher Eintrag ist gerade als "Buchseite" geöffnet
 const openEntry = ref(null)
 const isEditingEntry = ref(false)
 const isNewEntry = ref(false)
 
-// Felder für die Buchseite (zum Bearbeiten/Neu-Anlegen)
-const entryDatum = ref('')
-const entryOrt = ref('')
-const entryText = ref('')
+// Refs auf die DOM-Elemente für contenteditable
+const textElement = ref(null)
+const ortElement = ref(null)
 
+const entryDatum = ref('')
 const entryError = ref('')
 
 onMounted(async () => {
@@ -35,15 +33,11 @@ onMounted(async () => {
   }
 })
 
-// ── Reisen laden und auswählen ──────────────────
-
 async function ladeReisen() {
   try {
     const res = await axios.get(`${API}/reisen`)
     reisen.value = res.data
-    if (reisen.value.length > 0) {
-      waehleReise(reisen.value[0])
-    }
+    if (reisen.value.length > 0) waehleReise(reisen.value[0])
   } catch (e) {
     console.error('Fehler beim Laden der Reisen:', e)
   }
@@ -60,8 +54,6 @@ async function waehleReise(reise) {
     console.error('Fehler beim Laden der Einträge:', e)
   }
 }
-
-// ── Buchseite: Eintrag ansehen / bearbeiten / neu anlegen ──
 
 function eintragOeffnen(entry) {
   openEntry.value = entry
@@ -80,38 +72,59 @@ function neuerEintragOeffnen() {
   if (!selectedReiseId.value) return
   openEntry.value = { datum: '', ort: '', text: '' }
   entryDatum.value = ''
-  entryOrt.value = ''
-  entryText.value = ''
   isEditingEntry.value = true
   isNewEntry.value = true
+
+  // Fokus auf den Text-Bereich setzen nach dem Rendern
+  nextTick(() => {
+    if (textElement.value) textElement.value.focus()
+  })
 }
 
-function eintragBearbeitenStart() {
+async function eintragBearbeitenStart() {
   entryDatum.value = openEntry.value.datum
-  entryOrt.value = openEntry.value.ort
-  entryText.value = openEntry.value.text
   isEditingEntry.value = true
+
+  // Fokus auf den Text-Bereich setzen nach dem Rendern
+  nextTick(() => {
+    if (textElement.value) {
+      textElement.value.focus()
+      // Cursor ans Ende setzen
+      const range = document.createRange()
+      range.selectNodeContents(textElement.value)
+      range.collapse(false)
+      window.getSelection().removeAllRanges()
+      window.getSelection().addRange(range)
+    }
+  })
 }
 
 function eintragBearbeitenAbbrechen() {
   if (isNewEntry.value) {
     schliesseBuchseite()
   } else {
+    // Originaltext wiederherstellen (contenteditable hat ihn vielleicht geändert)
+    if (textElement.value) textElement.value.innerText = openEntry.value.text
+    if (ortElement.value) ortElement.value.innerText = openEntry.value.ort || ''
     isEditingEntry.value = false
   }
 }
 
 async function eintragSpeichern() {
-  if (!entryText.value.trim() || !entryDatum.value) {
+  // Text aus den contenteditable-Elementen auslesen
+  const neuerText = textElement.value ? textElement.value.innerText.trim() : ''
+  const neuerOrt = ortElement.value ? ortElement.value.innerText.trim() : ''
+
+  if (!neuerText || !entryDatum.value) {
     entryError.value = 'Bitte mindestens Text und Datum angeben.'
     return
   }
   entryError.value = ''
 
   const daten = {
-    text: entryText.value,
+    text: neuerText,
     datum: entryDatum.value,
-    ort: entryOrt.value,
+    ort: neuerOrt,
     reise: { id: selectedReiseId.value },
   }
 
@@ -131,7 +144,7 @@ async function eintragSpeichern() {
     isEditingEntry.value = false
     isNewEntry.value = false
   } catch (e) {
-    console.error('Fehler beim Speichern des Eintrags:', e)
+    console.error('Fehler beim Speichern:', e)
     entryError.value = 'Eintrag konnte nicht gespeichert werden.'
   }
 }
@@ -143,11 +156,10 @@ async function eintragLoeschen() {
     entries.value = entries.value.filter(e => e.id !== openEntry.value.id)
     schliesseBuchseite()
   } catch (e) {
-    console.error('Fehler beim Löschen des Eintrags:', e)
+    console.error('Fehler beim Löschen:', e)
   }
 }
 
-// vorheriger / nächster Eintrag in der Buchseite
 function vorherigerEintrag() {
   const i = entries.value.findIndex(e => e.id === openEntry.value.id)
   if (i > 0) eintragOeffnen(entries.value[i - 1])
@@ -157,8 +169,6 @@ function naechsterEintrag() {
   const i = entries.value.findIndex(e => e.id === openEntry.value.id)
   if (i < entries.value.length - 1) eintragOeffnen(entries.value[i + 1])
 }
-
-// ── kleine Hilfsfunktionen für Anzeige ──────────
 
 function kurzDatum(d) {
   if (!d) return ''
@@ -181,7 +191,6 @@ function vorschau(text) {
 <template>
   <div class="diary">
 
-    <!-- Linke Spalte: Liste der Reisen -->
     <aside class="reisen-spalte">
       <div class="spalte-header">
         <h2>Meine Reisen</h2>
@@ -206,43 +215,53 @@ function vorschau(text) {
       </ul>
     </aside>
 
-    <!-- Rechte Spalte -->
     <main class="detail-spalte">
 
       <div v-if="!selectedReise" class="leerer-zustand">
         <p>Wähle links eine Reise aus oder lege eine neue an.</p>
       </div>
 
-      <!-- Buchseite: ansehen oder bearbeiten/neu -->
       <div v-else-if="openEntry" class="buch-wrapper">
         <button class="zurueck-btn" @click="schliesseBuchseite">← Zurück zur Übersicht</button>
 
         <article class="buchseite">
 
-          <!-- Kopfzeile: entweder nur Anzeige oder Eingabefelder -->
+          <!-- Fotos oben, nur im Ansicht-Modus -->
+          <FotoUpload
+            v-if="!isEditingEntry && openEntry.id"
+            :entryId="openEntry.id"
+            class="foto-header"
+          />
+
           <header class="buchseite-header">
+            <!-- Datum: normales Input beim Bearbeiten, sonst nur Text -->
             <template v-if="isEditingEntry">
               <input type="date" v-model="entryDatum" class="buchseite-input datum-input" />
-              <input type="text" v-model="entryOrt" placeholder="Ort eingeben…" class="buchseite-input ort-input" />
             </template>
             <template v-else>
               <p class="buchseite-datum">{{ langDatum(openEntry.datum) }}</p>
-              <p v-if="openEntry.ort" class="buchseite-ort">📍 {{ openEntry.ort }}</p>
             </template>
+
+            <!-- Ort: contenteditable, immer sichtbar -->
+            <p
+              ref="ortElement"
+              :contenteditable="isEditingEntry"
+              :class="['buchseite-ort', { editierbar: isEditingEntry }]"
+              :data-placeholder="isEditingEntry ? 'Ort eingeben…' : ''"
+            >{{ openEntry.ort }}</p>
           </header>
 
           <hr class="buchseite-trenner" />
 
           <p v-if="entryError" class="fehler">{{ entryError }}</p>
 
-          <!-- Text: entweder nur Anzeige oder Textarea -->
-          <textarea
-            v-if="isEditingEntry"
-            v-model="entryText"
-            class="buchseite-textarea"
-            placeholder="Was ist heute passiert?"
-          ></textarea>
-          <p v-else class="buchseite-text">{{ openEntry.text }}</p>
+          <!-- Text: contenteditable, immer sichtbar, wird beim Bearbeiten editierbar -->
+          <p
+            ref="textElement"
+            :contenteditable="isEditingEntry"
+            :class="['buchseite-text', { editierbar: isEditingEntry }]"
+            :data-placeholder="isEditingEntry ? 'Was ist heute passiert?' : ''"
+          >{{ openEntry.text }}</p>
 
           <footer class="buchseite-footer">
             <template v-if="isEditingEntry">
@@ -262,7 +281,6 @@ function vorschau(text) {
         </div>
       </div>
 
-      <!-- Normale Ansicht: Reise-Infos + Liste der Einträge -->
       <div v-else>
         <header class="reise-header">
           <h1>{{ selectedReise.titel }}</h1>
@@ -314,7 +332,6 @@ function vorschau(text) {
   overflow: hidden;
 }
 
-/* Linke Spalte */
 .reisen-spalte {
   flex: 0 0 320px;
   background: #241b12;
@@ -347,7 +364,6 @@ function vorschau(text) {
   border-radius: 10px;
   padding: 12px 14px;
   cursor: pointer;
-  position: relative;
 }
 .reise-card:hover { border-color: #4a3a24; background: #312419; }
 .reise-card.active { border-color: #b8863f; background: #3a2c18; }
@@ -356,7 +372,6 @@ function vorschau(text) {
 .reise-card-ziel { color: #c9b896; font-size: 0.82rem; margin-top: 2px; }
 .reise-card-zeitraum { color: #8a7456; font-size: 0.75rem; margin-top: 4px; }
 
-/* Rechte Spalte */
 .detail-spalte {
   flex: 1;
   padding: 28px 36px;
@@ -386,7 +401,6 @@ function vorschau(text) {
   gap: 6px;
 }
 
-/* schlanke Eintrags-Zeile */
 .eintrag-zeile {
   display: flex;
   align-items: center;
@@ -425,7 +439,6 @@ function vorschau(text) {
 }
 .eintrag-zeile-pfeil { color: #6b5a3e; font-size: 1.1rem; flex-shrink: 0; }
 
-/* Buchseite */
 .buch-wrapper {
   display: flex;
   flex-direction: column;
@@ -456,7 +469,10 @@ function vorschau(text) {
     0 1px 2px rgba(0,0,0,0.3),
     0 12px 28px rgba(0,0,0,0.55),
     inset 0 0 60px rgba(120, 95, 55, 0.08);
-  position: relative;
+}
+
+.foto-header {
+  margin-bottom: 28px;
 }
 
 .buchseite-header {
@@ -467,19 +483,23 @@ function vorschau(text) {
   gap: 10px;
   font-family: Georgia, 'Times New Roman', serif;
 }
+
 .buchseite-datum {
   margin: 0;
   font-size: 1.05rem;
   font-style: italic;
   color: #5a4c33;
 }
+
+/* Ort-Zeile: im Ansicht-Modus nur sichtbar wenn befüllt */
 .buchseite-ort {
   margin: 0;
   font-size: 0.95rem;
   color: #6b5a3a;
+  font-family: Georgia, 'Times New Roman', serif;
+  min-width: 80px;
 }
 
-/* Eingabefelder in der Kopfzeile beim Bearbeiten/Neu-Anlegen */
 .buchseite-input {
   background: #fffaf0;
   border: 1px solid rgba(90, 76, 51, 0.4);
@@ -490,7 +510,6 @@ function vorschau(text) {
   color: #2b2620;
 }
 .datum-input { width: 170px; }
-.ort-input { flex: 1; min-width: 160px; }
 
 .buchseite-trenner {
   border: none;
@@ -498,27 +517,33 @@ function vorschau(text) {
   margin: 18px 0 26px;
 }
 
+/* Der Haupttext — sieht immer gleich aus, wird beim Bearbeiten editierbar */
 .buchseite-text {
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 1.08rem;
   line-height: 1.85;
   white-space: pre-wrap;
   margin: 0 0 30px;
+  min-height: 120px;
+  outline: none;
 }
 
-.buchseite-textarea {
-  width: 100%;
-  min-height: 280px;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 1.08rem;
-  line-height: 1.85;
-  background: #fffaf0;
-  border: 1px solid rgba(90, 76, 51, 0.4);
-  border-radius: 5px;
-  padding: 14px;
-  color: #2b2620;
-  resize: vertical;
-  margin-bottom: 20px;
+/* Wenn editierbar: subtiler Rahmen und Hintergrund als Hinweis */
+.buchseite-text.editierbar,
+.buchseite-ort.editierbar {
+  background: rgba(255, 250, 240, 0.8);
+  border-radius: 4px;
+  padding: 8px;
+  border: 1px dashed rgba(90, 76, 51, 0.4);
+  cursor: text;
+}
+
+/* Placeholder-Text wenn leer und editierbar */
+.buchseite-text.editierbar:empty::before,
+.buchseite-ort.editierbar:empty::before {
+  content: attr(data-placeholder);
+  color: #b0a080;
+  font-style: italic;
 }
 
 .buchseite-footer {
@@ -526,6 +551,7 @@ function vorschau(text) {
   gap: 10px;
   border-top: 1px solid rgba(90, 76, 51, 0.2);
   padding-top: 18px;
+  margin-top: 20px;
 }
 
 .buch-nav {
@@ -546,7 +572,6 @@ function vorschau(text) {
 }
 .nav-btn:hover { border-color: #c9963f; color: #c9963f; }
 
-/* Buttons */
 .btn-primary {
   background: #b8863f;
   color: #1c140d;
@@ -573,7 +598,6 @@ function vorschau(text) {
 .btn-secondary.klein { padding: 6px 12px; font-size: 0.78rem; }
 .btn-secondary.danger:hover { background: #4a2418; border-color: #6b3424; color: #e89878; }
 
-/* Hinweis-Kasten für Reiseplanung */
 .reiseplanung-hinweis {
   border: 1px dashed #3a2c1c;
   background: #1c140d;
@@ -582,7 +606,6 @@ function vorschau(text) {
   text-align: center;
   margin-bottom: 14px;
 }
-
 .reiseplanung-link {
   color: #a89878;
   font-weight: 600;
@@ -591,7 +614,6 @@ function vorschau(text) {
 }
 .reiseplanung-link:hover { color: #c9963f; }
 
-/* Hinweise / Fehler */
 .hinweis { color: #8a7456; font-size: 0.85rem; }
 .fehler {
   color: #e89878;
