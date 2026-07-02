@@ -58,12 +58,17 @@ function resolveIsoCode(feature: any): string {
   return ISO_FIXES[feature?.properties?.name] ?? raw
 }
 
+// ── Suche ──────────────────────────────────────────
+
 const searchQuery = ref('')
 const searchOpen = ref(false)
 const countryLayers = new Map<string, L.Layer>()
 
 function normalize(text: string): string {
-  return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
 }
 
 const searchResults = computed(() => {
@@ -120,13 +125,9 @@ onMounted(async () => {
   requestAnimationFrame(() => fitMapToContainer())
   window.addEventListener('resize', fitMapToContainer)
 
-  // Email aus localStorage holen und beim Request mitschicken
-  const userEmail = localStorage.getItem('userEmail') || ''
-
   try {
     const res = await axios.get(
-      `${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries/visited`,
-      { params: { email: userEmail } }
+      `${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries/visited`
     )
     visitedCountries.value = res.data.map((c: any) => c.countryCode)
   } catch (e) {
@@ -150,7 +151,9 @@ async function loadCountries() {
     onEachFeature: (feature, layer) => {
       const isoCode = resolveIsoCode(feature)
       const name = feature.properties.name
+
       countryLayers.set(name, layer)
+
       layer.on({
         click: () => handleCountryClick(isoCode, name),
         mouseover: (e: any) => {
@@ -193,20 +196,16 @@ async function handleCountryClick(isoCode: string, name: string) {
 }
 
 async function toggleCountry(isoCode: string, name: string) {
-  // Email bei jedem Request mitschicken
-  const userEmail = localStorage.getItem('userEmail') || ''
   try {
     if (visitedCountries.value.includes(isoCode)) {
       await axios.delete(
-        `${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries/${isoCode}`,
-        { params: { email: userEmail } }
+        `${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries/${isoCode}`
       )
       visitedCountries.value = visitedCountries.value.filter(c => c !== isoCode)
     } else {
       await axios.post(`${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries`, {
         countryCode: isoCode,
         country: name,
-        email: userEmail,
       })
       visitedCountries.value.push(isoCode)
     }
@@ -220,6 +219,7 @@ async function toggleCountry(isoCode: string, name: string) {
   <div class="map-wrapper">
     <div id="map" class="map" />
 
+    <!-- Suche oben links -->
     <div class="search-box">
       <input
         v-model="searchQuery"
@@ -239,6 +239,7 @@ async function toggleCountry(isoCode: string, name: string) {
       </ul>
     </div>
 
+    <!-- Legende unten links -->
     <div class="legende">
       <div class="legende-eintrag">
         <div class="legende-farbe besucht"></div>
@@ -250,6 +251,7 @@ async function toggleCountry(isoCode: string, name: string) {
       </div>
     </div>
 
+    <!-- Stats-Karte unten mittig -->
     <section class="stats-card">
       <div class="stat">
         <span class="stat-value">{{ worldPercent }}%</span>
@@ -341,6 +343,7 @@ async function toggleCountry(isoCode: string, name: string) {
   color: #1c140d;
 }
 
+/* Legende unten links */
 .legende {
   position: absolute;
   bottom: 100px;
@@ -380,6 +383,7 @@ async function toggleCountry(isoCode: string, name: string) {
   opacity: 0.8;
 }
 
+/* Stats-Karte unten mittig */
 .stats-card {
   position: absolute;
   bottom: 20px;
