@@ -242,7 +242,7 @@ function vorschau(text) {
               <p class="buchseite-datum">{{ langDatum(openEntry.datum) }}</p>
             </template>
 
-            <!-- Ort: contenteditable, immer sichtbar -->
+            // Ort: contenteditable, immer sichtbar>
             <p
               ref="ortElement"
               :contenteditable="isEditingEntry"
@@ -255,7 +255,7 @@ function vorschau(text) {
 
           <p v-if="entryError" class="fehler">{{ entryError }}</p>
 
-          <!-- Text: contenteditable, immer sichtbar, wird beim Bearbeiten editierbar -->
+          // Text: contenteditable, immer sichtbar, wird beim Bearbeiten editierbar
           <p
             ref="textElement"
             :contenteditable="isEditingEntry"
@@ -491,7 +491,7 @@ function vorschau(text) {
   color: #5a4c33;
 }
 
-/* Ort-Zeile: im Ansicht-Modus nur sichtbar wenn befüllt */
+// Ort-Zeile: im Ansicht-Modus nur sichtbar wenn befüllt
 .buchseite-ort {
   margin: 0;
   font-size: 0.95rem;
@@ -517,7 +517,7 @@ function vorschau(text) {
   margin: 18px 0 26px;
 }
 
-/* Der Haupttext — sieht immer gleich aus, wird beim Bearbeiten editierbar */
+// Der Haupttext — sieht immer gleich aus, wird beim Bearbeiten editierbar
 .buchseite-text {
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 1.08rem;
@@ -528,7 +528,7 @@ function vorschau(text) {
   outline: none;
 }
 
-/* Wenn editierbar: subtiler Rahmen und Hintergrund als Hinweis */
+// Wenn editierbar: subtiler Rahmen und Hintergrund als Hinweis
 .buchseite-text.editierbar,
 .buchseite-ort.editierbar {
   background: rgba(255, 250, 240, 0.8);
@@ -538,7 +538,7 @@ function vorschau(text) {
   cursor: text;
 }
 
-/* Placeholder-Text wenn leer und editierbar */
+// Placeholder-Text wenn leer und editierbar //
 .buchseite-text.editierbar:empty::before,
 .buchseite-ort.editierbar:empty::before {
   content: attr(data-placeholder);

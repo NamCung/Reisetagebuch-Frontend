@@ -20,7 +20,7 @@ const countries = [
 onMounted(async () => {
 try {
 const res = await axios.get(
-`${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries`  // ✅ geändert
+`${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries`
 )
 visitedCountries.value = res.data.map((c: any) => c.countryCode)
 } catch (e) {
@@ -37,7 +37,7 @@ visitedCountries.value = visitedCountries.value.filter(c => c !== code)
 } else {
 await axios.post(`${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries`, {
 countryCode: code,
-country: name,    // ✅ geändert: "countryName" → "country"
+country: name,
 })
 visitedCountries.value.push(code)
 }

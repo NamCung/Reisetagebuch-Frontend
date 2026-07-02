@@ -736,7 +736,7 @@ onMounted(() => {
   font-size: 0.82rem;
 }
 
-.laeuft {
+.läuft {
   color: #7a9b5c;
   font-weight: 600;
   font-size: 0.82rem;
