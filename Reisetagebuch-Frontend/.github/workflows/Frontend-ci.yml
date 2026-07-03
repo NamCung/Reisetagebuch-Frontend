@@ -1,0 +1,35 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Tests ausführen
+        run: npm run test:unit -- --run
+
+      - name: Frontend bauen
+        run: npm run build
+        env:
+          VITE_APP_BACKEND_BASE_URL: ${{ secrets.VITE_APP_BACKEND_BASE_URL }}
+          VITE_GOOGLE_MAPS_KEY: ${{ secrets.VITE_GOOGLE_MAPS_KEY }}
+          VITE_OKTA_BASE_URL: ${{ secrets.VITE_OKTA_BASE_URL }}
+          VITE_OKTA_CLIENT_ID: ${{ secrets.VITE_OKTA_CLIENT_ID }}
