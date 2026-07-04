@@ -31,5 +31,3 @@ jobs:
         env:
           VITE_APP_BACKEND_BASE_URL: ${{ secrets.VITE_APP_BACKEND_BASE_URL }}
           VITE_GOOGLE_MAPS_KEY: ${{ secrets.VITE_GOOGLE_MAPS_KEY }}
-          VITE_OKTA_BASE_URL: ${{ secrets.VITE_OKTA_BASE_URL }}
-          VITE_OKTA_CLIENT_ID: ${{ secrets.VITE_OKTA_CLIENT_ID }}

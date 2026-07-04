@@ -6,7 +6,7 @@ import axios from 'axios'
 const API = import.meta.env.VITE_APP_BACKEND_BASE_URL
 const router = useRouter()
 
-// Liste aller Reisen, wird vom Backend geladen
+/*Liste aller Reisen, wird vom Backend geladen */
 const reisen = ref([])
 // Id der Reise, die gerade im Formular bearbeitet wird (null = keine)
 const editingId = ref(null)

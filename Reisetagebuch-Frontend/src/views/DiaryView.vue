@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'  // nextTick NEU
+import { ref, onMounted, nextTick } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import axios from 'axios'
 import FotoUpload from '../components/FotoUpload.vue'
@@ -17,7 +17,7 @@ const openEntry = ref(null)
 const isEditingEntry = ref(false)
 const isNewEntry = ref(false)
 
-// Refs auf die DOM-Elemente für contenteditable
+
 const textElement = ref(null)
 const ortElement = ref(null)
 
@@ -75,7 +75,7 @@ function neuerEintragOeffnen() {
   isEditingEntry.value = true
   isNewEntry.value = true
 
-  // Fokus auf den Text-Bereich setzen nach dem Rendern
+
   nextTick(() => {
     if (textElement.value) textElement.value.focus()
   })
@@ -85,11 +85,10 @@ async function eintragBearbeitenStart() {
   entryDatum.value = openEntry.value.datum
   isEditingEntry.value = true
 
-  // Fokus auf den Text-Bereich setzen nach dem Rendern
+
   nextTick(() => {
     if (textElement.value) {
       textElement.value.focus()
-      // Cursor ans Ende setzen
       const range = document.createRange()
       range.selectNodeContents(textElement.value)
       range.collapse(false)
@@ -103,7 +102,7 @@ function eintragBearbeitenAbbrechen() {
   if (isNewEntry.value) {
     schliesseBuchseite()
   } else {
-    // Originaltext wiederherstellen (contenteditable hat ihn vielleicht geändert)
+
     if (textElement.value) textElement.value.innerText = openEntry.value.text
     if (ortElement.value) ortElement.value.innerText = openEntry.value.ort || ''
     isEditingEntry.value = false
@@ -111,7 +110,7 @@ function eintragBearbeitenAbbrechen() {
 }
 
 async function eintragSpeichern() {
-  // Text aus den contenteditable-Elementen auslesen
+
   const neuerText = textElement.value ? textElement.value.innerText.trim() : ''
   const neuerOrt = ortElement.value ? ortElement.value.innerText.trim() : ''
 
@@ -319,8 +318,7 @@ function vorschau(text) {
 </template>
 
 <style scoped>
-:global(body) { margin: 0; padding: 0; }
-:global(#app) { width: 100vw; height: 100vh; margin: 0; padding: 0; }
+
 
 .diary {
   display: flex;
@@ -625,3 +623,4 @@ function vorschau(text) {
   margin: 0 0 12px;
 }
 </style>
+be

@@ -58,7 +58,7 @@ function resolveIsoCode(feature: any): string {
   return ISO_FIXES[feature?.properties?.name] ?? raw
 }
 
-// ── Suche ──────────────────────────────────────────
+/* Suche */
 
 const searchQuery = ref('')
 const searchOpen = ref(false)
