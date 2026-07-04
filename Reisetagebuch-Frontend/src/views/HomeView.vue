@@ -58,7 +58,8 @@ function resolveIsoCode(feature: any): string {
   return ISO_FIXES[feature?.properties?.name] ?? raw
 }
 
-// Suche
+// ── Suche ──────────────────────────────────────────
+
 const searchQuery = ref('')
 const searchOpen = ref(false)
 const countryLayers = new Map<string, L.Layer>()
@@ -238,7 +239,7 @@ async function toggleCountry(isoCode: string, name: string) {
       </ul>
     </div>
 
-     // Legende unten links
+    <!-- Legende unten links -->
     <div class="legende">
       <div class="legende-eintrag">
         <div class="legende-farbe besucht"></div>
@@ -250,8 +251,7 @@ async function toggleCountry(isoCode: string, name: string) {
       </div>
     </div>
 
-    // Stats-Karte unten mittig
-
+    <!-- Stats-Karte unten mittig -->
     <section class="stats-card">
       <div class="stat">
         <span class="stat-value">{{ worldPercent }}%</span>
@@ -383,7 +383,7 @@ async function toggleCountry(isoCode: string, name: string) {
   opacity: 0.8;
 }
 
-// Stats-Karte unten mittig
+/* Stats-Karte unten mittig */
 .stats-card {
   position: absolute;
   bottom: 20px;
