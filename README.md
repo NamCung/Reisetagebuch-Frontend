@@ -38,13 +38,12 @@ Das Reisetagebuch Frontend ist eine Vue 3 Single Page Application, die eine inte
 | Kategorie | Technologie |
 |---|---|
 | Framework | Vue 3 |
-
+| Build-Tool | Vite 8 |
 | Karte | Leaflet 1.9 |
 | Kartenplanung | Google Maps API |
 | Tests | Vitest |
 | CI/CD | GitHub Actions |
 | Deployment | Render.com |
-
 ---
 
 ## Lokales Setup
