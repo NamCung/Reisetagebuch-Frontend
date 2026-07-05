@@ -41,15 +41,15 @@
 <script>
 const API = import.meta.env.VITE_APP_BACKEND_BASE_URL
 
-// Maximale Breite des Bildes in Pixeln nach der Verkleinerung
+/*Maximale Breite des Bildes in Pixeln nach der Verkleinerung*/
 const MAX_BREITE = 900
 
-// JPEG Qualität: 0.0 = schlechteste, 1.0 = beste
-// 0.75 ist ein guter Kompromiss zwischen Qualität und Dateigröße
+/*JPEG Qualität: 0.0 = schlechteste, 1.0 = beste*/
+/* 0.75 ist ein guter Kompromiss zwischen Qualität und Dateigröße*/
 const JPEG_QUALITAET = 0.75
 
-// Maximale Dateigröße die hochgeladen werden darf (in MB)
-// Bilder größer als das werden abgelehnt BEVOR sie verkleinert werden
+/*Maximale Dateigröße die hochgeladen werden darf (in MB)*/
+/*Bilder größer als das werden abgelehnt BEVOR sie verkleinert werden*/
 const MAX_MB_VOR_VERKLEINERUNG = 15
 
 export default {
@@ -107,14 +107,14 @@ export default {
 
       for (const datei of event.target.files) {
 
-        // Datei zu groß? Ablehnen bevor wir überhaupt anfangen
+        /* Datei zu groß? Ablehnen bevor wir überhaupt anfangen */
         const groesseInMB = datei.size / 1024 / 1024
         if (groesseInMB > MAX_MB_VOR_VERKLEINERUNG) {
           this.fehler = `"${datei.name}" ist zu groß (${groesseInMB.toFixed(1)} MB). Bitte max. ${MAX_MB_VOR_VERKLEINERUNG} MB.`
           continue // nächste Datei probieren
         }
 
-        // Bild verkleinern und komprimieren
+        /* Bild verkleinern und komprimieren */
         const klein = await this.bildVerkleinern(datei)
         const base64 = await this.zuBase64(klein)
 
@@ -132,7 +132,7 @@ export default {
       await this.fotosLaden()
       this.aktuellerIndex = Math.max(0, this.fotos.length - 1)
 
-      // Input zurücksetzen damit man gleich nochmal hochladen kann
+      /* Input zurücksetzen damit man gleich nochmal hochladen kann */
       event.target.value = ''
     },
 
@@ -145,29 +145,29 @@ export default {
       }
     },
 
-    // Bild auf MAX_BREITE verkleinern und mit JPEG_QUALITAET komprimieren
-    // Ein typisches Handy-Foto (4000x3000px, 5MB) wird so auf ~100-200KB
+    /* Bild auf MAX_BREITE verkleinern und mit JPEG_QUALITAET komprimieren*/
+    /* Ein typisches Handy-Foto (4000x3000px, 5MB) wird so auf ~100-200KB */
     bildVerkleinern(datei) {
       return new Promise((resolve) => {
         const img = new Image()
         img.onload = () => {
           const canvas = document.createElement('canvas')
 
-          // Nur verkleinern wenn das Bild breiter als MAX_BREITE ist
+          /* Nur verkleinern wenn das Bild breiter als MAX_BREITE ist */
           const scale = Math.min(1, MAX_BREITE / img.width)
           canvas.width = img.width * scale
           canvas.height = img.height * scale
 
           canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
 
-          // Als JPEG mit reduzierter Qualität exportieren
+          /* Als JPEG mit reduzierter Qualität exportieren */
           canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITAET)
         }
         img.src = URL.createObjectURL(datei)
       })
     },
 
-    // Blob/File Objekt in Base64 String umwandeln
+    /*  Blob/File Objekt in Base64 String umwandeln */
     zuBase64(datei) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader()

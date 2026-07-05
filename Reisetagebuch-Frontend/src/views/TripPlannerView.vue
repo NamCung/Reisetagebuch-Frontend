@@ -8,9 +8,9 @@ const router = useRouter()
 
 /*Liste aller Reisen, wird vom Backend geladen */
 const reisen = ref([])
-// Id der Reise, die gerade im Formular bearbeitet wird (null = keine)
+/* Id der Reise, die gerade im Formular bearbeitet wird (null = keine) */
 const editingId = ref(null)
-// Eingabewerte für das Formular "Neue Reise"
+/* Eingabewerte für das Formular "Neue Reise" */
 const neueReise = ref({
   titel: '',
   reiseziel: '',
@@ -19,21 +19,21 @@ const neueReise = ref({
   beschreibung: ''
 })
 
-// Id der Reise, die gerade aufgeklappt ist (nur eine gleichzeitig möglich)
+/* Id der Reise, die gerade aufgeklappt ist (nur eine gleichzeitig möglich) */
 const expandedId = ref(null)
-// geplante Orte der aktuell aufgeklappten Reise
+/* geplante Orte der aktuell aufgeklappten Reise */
 const orte = ref([])
-// Referenz auf das Such-Input-Feld für die Ortssuche
+/* Referenz auf das Such-Input-Feld für die Ortssuche */
 const ortSucheInput = ref(null)
-// aktuell ausgewählte Kategorie für neue Orte
+/* aktuell ausgewählte Kategorie für neue Orte */
 const ausgewaehlteKategorie = ref('SEHENSWUERDIGKEIT')
 
-// Karten-Objekt, muss nicht reaktiv sein
+/* Karten-Objekt, muss nicht reaktiv sein */
 let karte = null
-// aktuelle Marker auf der Karte
+/* aktuelle Marker auf der Karte */
 let marker = []
 
-// Kategorien mit Label, Icon und Farbe zur Auswahl
+/* Kategorien mit Label, Icon und Farbe zur Auswahl */
 const KATEGORIEN = {
   SEHENSWUERDIGKEIT: { label: 'Sehenswürdigkeit', icon: '📍', farbe: '#c9963f' },
   RESTAURANT: { label: 'Restaurant', icon: '🍴', farbe: '#e07a5f' },
@@ -41,7 +41,7 @@ const KATEGORIEN = {
   SONSTIGES: { label: 'Sonstiges', icon: '⭐', farbe: '#8c8c8c' },
 }
 
-// liefert Icon/Label/Farbe zu einer Kategorie, oder "Sonstiges" als Standard
+/* liefert Icon/Label/Farbe zu einer Kategorie, oder "Sonstiges" als Standard */
 function kategorieInfo(wert) {
   if (KATEGORIEN[wert]) {
     return KATEGORIEN[wert]
@@ -49,11 +49,11 @@ function kategorieInfo(wert) {
   return KATEGORIEN.SONSTIGES
 }
 
-// Status-Flags, damit das Google-Maps-Script nur einmal geladen wird
+/* Status-Flags, damit das Google-Maps-Script nur einmal geladen wird */
 let mapsGeladen = false
 let mapsPromise = null
 
-// lädt das Google Maps Script einmalig und wartet auf den Callback von Google
+/* lädt das Google Maps Script einmalig und wartet auf den Callback von Google */
 function ladeGoogleMapsScript() {
   if (mapsGeladen) {
     return Promise.resolve()
@@ -63,7 +63,7 @@ function ladeGoogleMapsScript() {
   }
 
   mapsPromise = new Promise((resolve, reject) => {
-    // Google ruft diese Funktion selbst auf, sobald wirklich alles fertig geladen ist
+    /* Google ruft diese Funktion selbst auf, sobald wirklich alles fertig geladen ist */
     window.initGoogleMaps = () => {
       mapsGeladen = true
       resolve()
@@ -80,30 +80,30 @@ function ladeGoogleMapsScript() {
   return mapsPromise
 }
 
-// baut die Karte für eine Reise neu auf und setzt alle Marker
+/* baut die Karte für eine Reise neu auf und setzt alle Marker */
 function aktualisiereKarte(reiseId) {
   const container = document.getElementById('karte-' + reiseId)
   if (!container) return
 
-  // Kartenmittelpunkt: erster Ort, falls vorhanden, sonst Standardwert
+  /* Kartenmittelpunkt: erster Ort, falls vorhanden, sonst Standardwert */
   let center = { lat: 20, lng: 0 }
   if (orte.value.length > 0) {
     center = { lat: orte.value[0].latitude, lng: orte.value[0].longitude }
   }
 
-  // Karte wird bei jedem Auf-/Zuklappen neu gebaut, einfacher als wiederverwenden
+  /*  Karte wird bei jedem Auf-/Zuklappen neu gebaut, einfacher als wiederverwenden */
   karte = new google.maps.Map(container, {
     center: center,
     zoom: orte.value.length > 0 ? 13 : 2,
   })
 
-  // alte Marker erstmal entfernen
+  /* alte Marker erstmal entfernen */
   for (const m of marker) {
     m.setMap(null)
   }
   marker = []
 
-  // für jeden Ort einen neuen Marker mit passendem Icon/Farbe anlegen
+  /* für jeden Ort einen neuen Marker mit passendem Icon/Farbe anlegen */
   for (const ort of orte.value) {
     const info = kategorieInfo(ort.kategorie)
     const neuerMarker = new google.maps.Marker({
@@ -124,18 +124,18 @@ function aktualisiereKarte(reiseId) {
   }
 }
 
-// richtet die Google-Autocomplete-Suche im Input-Feld ein
+/* richtet die Google-Autocomplete-Suche im Input-Feld ein */
 function initialisiereAutocomplete(reiseId) {
   if (!ortSucheInput.value) return
 
   const autocomplete = new google.maps.places.Autocomplete(ortSucheInput.value)
-  // wird ausgelöst, wenn der Nutzer einen Vorschlag aus der Liste anklickt
+  /* wird ausgelöst, wenn der Nutzer einen Vorschlag aus der Liste anklickt */
   autocomplete.addListener('place_changed', async () => {
     const place = autocomplete.getPlace()
     if (!place.geometry) return
 
     try {
-      // gewählten Ort mit der aktuell ausgewählten Kategorie ans Backend senden
+      /*  gewählten Ort mit der aktuell ausgewählten Kategorie ans Backend senden */
       await axios.post(API + '/orte', {
         name: place.name,
         ort: place.formatted_address,
@@ -155,13 +155,13 @@ function initialisiereAutocomplete(reiseId) {
   })
 }
 
-// lädt die geplanten Orte einer Reise vom Backend
+/* lädt die geplanten Orte einer Reise vom Backend */
 async function ladeOrte(reiseId) {
   const res = await axios.get(API + '/reisen/' + reiseId + '/orte')
   orte.value = res.data
 }
 
-// klappt eine Reise auf oder zu und initialisiert dabei Karte und Suche
+/* klappt eine Reise auf oder zu und initialisiert dabei Karte und Suche */
 async function reiseAufklappen(reise) {
   if (expandedId.value === reise.id) {
     expandedId.value = null
@@ -179,26 +179,26 @@ async function reiseAufklappen(reise) {
     orte.value = []
   }
 
-  // warten bis das Input-Feld wirklich im DOM ist
+  /* warten bis das Input-Feld wirklich im DOM ist */
   await wartenBisInputBereit()
 
   aktualisiereKarte(reise.id)
   initialisiereAutocomplete(reise.id)
 }
 
-// wartet so lange, bis das Such-Input-Feld als echtes HTML-Element vorhanden ist
+/* wartet so lange, bis das Such-Input-Feld als echtes HTML-Element vorhanden ist */
 async function wartenBisInputBereit() {
   for (let versuch = 0; versuch < 10; versuch++) {
     await nextTick()
     if (ortSucheInput.value instanceof HTMLInputElement) {
       return
     }
-    // kurz warten und nochmal probieren
+    /* kurz warten und nochmal probieren */
     await new Promise(resolve => setTimeout(resolve, 30))
   }
 }
 
-// löscht einen geplanten Ort und aktualisiert danach Liste und Karte
+/* löscht einen geplanten Ort und aktualisiert danach Liste und Karte */
 async function ortLoeschen(reiseId, ortId) {
   try {
     await axios.delete(API + '/orte/' + ortId)
@@ -209,7 +209,7 @@ async function ortLoeschen(reiseId, ortId) {
   }
 }
 
-// sortiert die Reisen, geplante zuerst, danach nach Startdatum
+/* sortiert die Reisen, geplante zuerst, danach nach Startdatum */
 const sortierteReisen = computed(() => {
   const kopie = [...reisen.value]
   kopie.sort((a, b) => {
@@ -224,7 +224,7 @@ const sortierteReisen = computed(() => {
   return kopie
 })
 
-// lädt alle Reisen vom Backend
+/* lädt alle Reisen vom Backend */
 async function ladeReisen() {
   try {
     const res = await axios.get(API + '/reisen')
@@ -234,7 +234,7 @@ async function ladeReisen() {
   }
 }
 
-// legt eine neue Reise an oder aktualisiert eine bestehende, je nach Status
+/* legt eine neue Reise an oder aktualisiert eine bestehende, je nach Status */
 async function reiseAnlegen(status) {
   if (!neueReise.value.titel) return
 
@@ -259,7 +259,7 @@ async function reiseAnlegen(status) {
   }
 }
 
-// übernimmt die Werte einer Reise ins Formular zum Bearbeiten
+/* übernimmt die Werte einer Reise ins Formular zum Bearbeiten */
 function reiseBearbeitenStarten(reise) {
   editingId.value = reise.id
   neueReise.value = {
@@ -271,13 +271,13 @@ function reiseBearbeitenStarten(reise) {
   }
 }
 
-// bricht das Bearbeiten ab und leert das Formular
+/*  bricht das Bearbeiten ab und leert das Formular */
 function bearbeitenAbbrechen() {
   editingId.value = null
   neueReise.value = { titel: '', reiseziel: '', startDatum: '', endDatum: '', beschreibung: '' }
 }
 
-// löscht eine Reise nach Rückfrage und räumt den restlichen Zustand auf
+/* löscht eine Reise nach Rückfrage und räumt den restlichen Zustand auf */
 async function reiseLoeschen(id) {
   if (!window.confirm('Diese Reise wirklich löschen?')) return
 
@@ -295,13 +295,13 @@ async function reiseLoeschen(id) {
   }
 }
 
-// formatiert ein Datum kurz im deutschen Format
+/* formatiert ein Datum kurz im deutschen Format */
 function kurzDatum(d) {
   if (!d) return ''
   return new Date(d).toLocaleDateString('de-DE')
 }
 
-// berechnet den Anzeige-Status einer Reise (Countdown, läuft, abgeschlossen, etc.)
+/* berechnet den Anzeige-Status einer Reise (Countdown, läuft, abgeschlossen, etc.) */
 function zeileStatus(reise) {
   if (reise.status !== 'GEPLANT' || !reise.reiseziel || !reise.startDatum || !reise.endDatum) {
     return { text: 'Details fehlen', klasse: 'keine-details' }
@@ -328,7 +328,7 @@ function zeileStatus(reise) {
   return { text: 'Abgeschlossen', klasse: 'abgeschlossen' }
 }
 
-// beim Laden der Seite einmal alle Reisen holen
+/*  beim Laden der Seite einmal alle Reisen holen */
 onMounted(() => {
   ladeReisen()
 })
