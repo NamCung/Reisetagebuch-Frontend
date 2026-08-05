@@ -29,7 +29,7 @@ async function anmelden() {
 <template>
   <div class="login">
     <div class="box">
-      <h2>🌍 Reisetagebuch</h2>
+      <h2>Reisetagebuch</h2>
 
       <div class="tabs">
         <button :class="{ aktiv: modus === 'login' }" @click="modus = 'login'">Anmelden</button>
@@ -54,23 +54,28 @@ async function anmelden() {
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background: #111;
+  background: #1a1209;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .box {
-  background: white;
-  padding: 40px;
+  background: #2a1f0e;
+  border: 1px solid #c8972a;
+  padding: 48px 40px;
   border-radius: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  width: 320px;
+  gap: 14px;
+  width: 340px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 }
 
 h2 {
   text-align: center;
-  margin: 0;
-  font-size: 1.4rem;
+  color: #c8972a;
+  font-size: 1.6rem;
+  margin: 0 0 8px 0;
+  font-weight: 700;
 }
 
 .tabs {
@@ -80,39 +85,62 @@ h2 {
 
 .tabs button {
   flex: 1;
-  padding: 8px;
-  border: 1px solid #ccc;
-  background: white;
+  padding: 9px;
+  border: 1px solid #c8972a;
+  background: transparent;
+  color: #c8972a;
   border-radius: 6px;
   cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
 }
 
 .tabs button.aktiv {
-  background: #27ae60;
-  color: white;
-  border-color: #27ae60;
+  background: #c8972a;
+  color: #1a1209;
+  font-weight: 700;
 }
 
 input {
-  padding: 10px;
-  border: 1px solid #ccc;
+  padding: 11px 14px;
+  border: 1px solid #3d2e14;
+  background: #1a1209;
+  color: #e8d5a3;
   border-radius: 6px;
   font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input:focus {
+  border-color: #c8972a;
+}
+
+input::placeholder {
+  color: #6b5a3a;
 }
 
 .submit {
   padding: 12px;
-  background: #27ae60;
-  color: white;
+  background: #c8972a;
+  color: #1a1209;
   border: none;
   border-radius: 6px;
   font-size: 1rem;
+  font-weight: 700;
   cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.2s;
+}
+
+.submit:hover {
+  background: #e0aa30;
 }
 
 .fehler {
-  color: red;
+  color: #e05555;
   font-size: 0.85rem;
   margin: 0;
+  text-align: center;
 }
 </style>

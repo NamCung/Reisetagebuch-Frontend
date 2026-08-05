@@ -50,12 +50,18 @@ let geojsonLayer: L.GeoJSON | null = null
 const ISO_FIXES: Record<string, string> = {
   France: 'FR',
   Norway: 'NO',
+  Russia: 'RU',
+  'Egypt': 'EG',
+  'W. Sahara': 'EH',
+  'Kosovo': 'XK',
+  'N. Cyprus': 'CY',
+  'Somaliland': 'SO',
 }
-
 function resolveIsoCode(feature: any): string {
-  const raw = feature?.properties?.['ISO3166-1-Alpha-2']
+  const raw = feature?.properties?.['ISO_A2']
+    ?? feature?.properties?.['ISO3166-1-Alpha-2']
   if (raw && raw !== '-99') return raw
-  return ISO_FIXES[feature?.properties?.name] ?? raw
+  return ISO_FIXES[feature?.properties?.name] ?? '-99'
 }
 
 /* Suche */
@@ -126,8 +132,10 @@ onMounted(async () => {
   window.addEventListener('resize', fitMapToContainer)
 
   try {
+    const token = localStorage.getItem('token')
     const res = await axios.get(
-      `${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries/visited`
+      `${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries/visited`,
+      { headers: { Authorization: `Bearer ${token}` } }
     )
     visitedCountries.value = res.data.map((c: any) => c.countryCode)
   } catch (e) {
@@ -196,17 +204,21 @@ async function handleCountryClick(isoCode: string, name: string) {
 }
 
 async function toggleCountry(isoCode: string, name: string) {
+  const token = localStorage.getItem('token')
+  const headers = { Authorization: `Bearer ${token}` }
   try {
     if (visitedCountries.value.includes(isoCode)) {
       await axios.delete(
-        `${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries/${isoCode}`
+        `${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries/${isoCode}`,
+        { headers }
       )
       visitedCountries.value = visitedCountries.value.filter(c => c !== isoCode)
     } else {
-      await axios.post(`${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries`, {
-        countryCode: isoCode,
-        country: name,
-      })
+      await axios.post(
+        `${import.meta.env.VITE_APP_BACKEND_BASE_URL}/countries`,
+        { countryCode: isoCode, country: name },
+        { headers }
+      )
       visitedCountries.value.push(isoCode)
     }
   } catch (e) {
@@ -214,7 +226,6 @@ async function toggleCountry(isoCode: string, name: string) {
   }
 }
 </script>
-
 <template>
   <div class="map-wrapper">
     <div id="map" class="map" />
